@@ -50,6 +50,6 @@
   <developer id="us.hagreli">
     <name>Matthew Hagrelius</name>
   </developer>
-  <url type="homepage">https://github.com/hagrelius/mynah</url>
-  <url type="bugtracker">https://github.com/hagrelius/mynah/issues</url>
+  <url type="homepage">https://github.com/mhagrelius/mynah</url>
+  <url type="bugtracker">https://github.com/mhagrelius/mynah/issues</url>
 </component>

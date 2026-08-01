@@ -6,7 +6,7 @@ Architecture: @ARCH@
 Depends: @DEPENDS@
 Recommends: pipewire-bin, wl-clipboard
 Maintainer: Matthew Hagrelius <matthew@hagreli.us>
-Homepage: https://github.com/hagrelius/mynah
+Homepage: https://github.com/mhagrelius/mynah
 Description: Dictation for the GNOME desktop
  Mynah puts a global shortcut on your keyboard: press it, say what you
  mean, press it again, and the words appear in whatever window you were

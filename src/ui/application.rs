@@ -253,8 +253,8 @@ impl MynahApplication {
             .application_icon(crate::APP_ID)
             .developer_name("Matthew Hagrelius")
             .version(env!("CARGO_PKG_VERSION"))
-            .website("https://github.com/hagrelius/mynah")
-            .issue_url("https://github.com/hagrelius/mynah/issues")
+            .website("https://github.com/mhagrelius/mynah")
+            .issue_url("https://github.com/mhagrelius/mynah/issues")
             .license_type(gtk::License::Gpl30)
             .comments(
                 "Speak, and it types. Speech recognition runs on this machine; \
