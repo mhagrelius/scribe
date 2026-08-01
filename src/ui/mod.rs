@@ -13,6 +13,7 @@ pub mod models;
 pub mod overlay;
 pub mod portal;
 pub mod recorder;
+pub mod shell;
 pub mod shortcut;
 pub mod tray;
 pub mod window;

@@ -1,0 +1,15 @@
+{
+  "uuid": "scribe@hagreli.us",
+  "name": "Scribe Text Insertion",
+  "description": "Lets the Scribe dictation app type its transcript into whatever window has focus. Wayland gives applications no way to synthesize input into another application's window; this extension does it from inside the compositor, where a virtual keyboard device is available. It answers only the Scribe application, verified by bus name, and does nothing else.",
+  "shell-version": [
+    "48",
+    "49",
+    "50"
+  ],
+  "session-modes": [
+    "user"
+  ],
+  "version": 1,
+  "url": "https://github.com/mhagrelius/scribe"
+}

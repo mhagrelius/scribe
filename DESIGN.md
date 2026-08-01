@@ -160,6 +160,21 @@ every bar is drawn a whole number of pixels either side of it.
 `examples/preview.rs` renders the window offscreen so this is checkable without
 screenshotting a live session.
 
+**Typing moved into the compositor.** The RemoteDesktop portal works, but its
+consent dialog talks about remote interaction, which is an alarming thing to
+ask of a dictation app, and its sessions are closed by GNOME on a schedule of
+its own. A companion shell extension has neither problem: it runs where a
+virtual keyboard device is simply available, so there is no permission and
+nothing to be closed. The portal is kept as the fallback, because a newly
+installed extension does not load until the next login and because not
+everyone wants an extension.
+
+The extension's security boundary is its caller: `Insert` is the only method,
+and every call has its sender compared against the current owner of Scribe's
+own bus name. An interface that types arbitrary text into the focused window
+is a keylogger's mirror image sitting on a bus every application can reach, so
+that check is the whole design, not a detail.
+
 ## Settled
 
 - Application id `us.hagreli.Scribe`, binary `scribe`

@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
-# Build Scribe and install it under $PREFIX (~/.local by default).
+# Build Scribe and install it, along with its GNOME Shell extension, under
+# $PREFIX (~/.local by default).
+#
+#   ./install.sh              app and extension
+#   ./install.sh --app-only   skip the shell extension
 set -euo pipefail
 cd "$(dirname "$0")"
 
 PREFIX="${PREFIX:-$HOME/.local}"
 APP_ID="us.hagreli.Scribe"
+EXT_UUID="scribe@hagreli.us"
+EXT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$EXT_UUID"
+APP_ONLY=""
+[ "${1:-}" = "--app-only" ] && APP_ONLY=1
 
 echo "Building…"
 cargo build --release --locked
@@ -33,6 +41,20 @@ case ":$PATH:" in
   *) echo "Note: $PREFIX/bin is not on your PATH." ;;
 esac
 
+# ---- the shell extension --------------------------------------------------
+if [ -n "$APP_ONLY" ]; then
+  echo "Skipping the shell extension (--app-only)"
+else
+  echo "Installing the GNOME Shell extension"
+  for f in extension.js interface.js metadata.json; do
+    install -Dm644 "extension/$f" "$EXT_DIR/$f"
+  done
+  if command -v gnome-extensions >/dev/null; then
+    gnome-extensions enable "$EXT_UUID" 2>/dev/null \
+      || echo "  could not enable it automatically; run: gnome-extensions enable $EXT_UUID"
+  fi
+fi
+
 cat <<EOF
 
 Installed. Open Scribe once to download the speech model and set the shortcut;
@@ -41,4 +63,11 @@ it registers Super+Alt+D with GNOME by default.
 Your settings live in  ~/.config/scribe/config.json
 The speech models live in  ~/.local/share/scribe/models
 Neither is touched by ./uninstall.sh.
+
+The shell extension is what types your transcript into other windows. It
+needs no permission, because it runs inside the compositor. If Scribe says
+it is using the RemoteDesktop portal instead, the extension has not loaded
+yet — on Wayland a newly installed extension is picked up at the next login.
+
+  gnome-extensions info $EXT_UUID
 EOF

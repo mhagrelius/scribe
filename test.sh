@@ -21,4 +21,11 @@ cargo clippy --all-targets -- -D warnings
 echo "==> cargo test"
 $HEADLESS cargo test --all-targets
 
+if command -v gjs >/dev/null; then
+  echo "==> shell extension"
+  gjs -m extension/test.js
+else
+  echo "==> shell extension (skipped: no gjs)"
+fi
+
 echo "All green."

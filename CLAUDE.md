@@ -60,6 +60,12 @@ gnome-settings-daemon keybinding, and dictation is therefore a toggle rather
 than push-to-talk. Do not "fix" this by reaching for the portal again without
 re-testing `CreateSession`.
 
+Text is typed by the shell extension in `extension/` when it is loaded, and by
+the RemoteDesktop portal when it is not. The portal's sessions are closed by
+GNOME without warning, so `Typist` opens one at the start of a dictation,
+watches for `Closed`, and retries once against a fresh session before falling
+back — a `Ready` state is not evidence the handle still works.
+
 The clipboard goes through `wl-copy`, not GDK, because a Wayland client with no
 focused surface cannot take the selection — and Scribe never has focus when a
 dictation ends. Both are written up in `DESIGN.md` under "Built differently, or

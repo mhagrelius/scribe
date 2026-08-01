@@ -12,8 +12,13 @@
 //! `restore_token` that skips the dialog next time. The token is single-use:
 //! each successful start returns a fresh one, so it is rewritten every time.
 //!
-//! When consent is refused the transcript still goes to the clipboard, which
-//! needs no permission at all and is the floor this app will not drop below.
+//! Better still is the companion shell extension, which runs inside the
+//! compositor and so needs no permission at all. When it is loaded it is used
+//! in preference to the portal, and the portal remains for people who would
+//! rather not install an extension.
+//!
+//! When both are unavailable the transcript still goes to the clipboard, which
+//! needs no permission either and is the floor this app will not drop below.
 
 use gio::prelude::*;
 use gtk::glib;
@@ -21,7 +26,7 @@ use gtk::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use super::portal;
+use super::{portal, shell};
 
 const INTERFACE: &str = "org.freedesktop.portal.RemoteDesktop";
 
@@ -99,7 +104,15 @@ impl Typist {
     /// Whether permission has actually been granted, rather than merely not
     /// refused yet.
     pub fn is_ready(&self) -> bool {
-        self.state.get() == State::Ready
+        self.state.get() == State::Ready || self.via_extension()
+    }
+
+    /// Whether the shell extension is loaded and will take the text.
+    ///
+    /// When it is, none of the portal machinery below runs at all: no session,
+    /// no consent, nothing to be closed out from under us.
+    pub fn via_extension(&self) -> bool {
+        self.connection.as_ref().is_some_and(shell::is_available)
     }
 
     /// Whether the user has turned Scribe down this run.
@@ -138,6 +151,12 @@ impl Typist {
     /// the seconds the user spends talking, instead of failing afterwards.
     pub fn ensure_session(self: &Rc<Self>) {
         if self.state.get() != State::Idle {
+            return;
+        }
+        // Nothing to open. Asking for remote-desktop permission when the
+        // extension is already able to do the job would be a dialog with no
+        // purpose.
+        if self.via_extension() {
             return;
         }
         if let Some(connection) = self.connection.clone() {
@@ -179,6 +198,17 @@ impl Typist {
             done(Delivered::Copied);
             return;
         };
+
+        // The extension first, every time. It is cheaper than the portal, it
+        // cannot be closed by the compositor, and it needs no permission.
+        match shell::insert(&connection, text) {
+            Ok(()) => {
+                done(Delivered::Typed);
+                return;
+            }
+            Err(shell::ShellError::NotRunning) => {}
+            Err(error) => eprintln!("scribe: {error}"),
+        }
 
         match self.state.get() {
             State::Ready => {

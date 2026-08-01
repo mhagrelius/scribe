@@ -238,8 +238,14 @@ impl Window {
         });
     }
 
-    /// Say whether Scribe may type into other windows.
-    pub fn show_permission(&self, typing_wanted: bool, granted: bool, refused: bool) {
+    /// Say whether Scribe may type into other windows, and by what route.
+    pub fn show_permission(
+        &self,
+        typing_wanted: bool,
+        granted: bool,
+        refused: bool,
+        via_extension: bool,
+    ) {
         let imp = self.imp();
         let Some(row) = imp.permission_row.borrow().clone() else {
             return;
@@ -247,7 +253,15 @@ impl Window {
         row.set_visible(typing_wanted);
         row.remove_css_class("error");
 
-        let (subtitle, button, show_button) = if granted {
+        let (subtitle, button, show_button) = if via_extension {
+            // The extension does the typing from inside the compositor, so
+            // there is no permission to grant and nothing to ask for.
+            (
+                "Handled by the Scribe shell extension — no permission needed",
+                "Allow typing",
+                false,
+            )
+        } else if granted {
             (
                 "Granted — Scribe can type into the focused window",
                 "Ask again",

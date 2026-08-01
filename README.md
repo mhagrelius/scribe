@@ -32,9 +32,10 @@ leaves it.
 ## Install
 
 ```sh
-./install.sh     # builds, installs under ~/.local, registers the shortcut
-./uninstall.sh   # reverses it; leaves your settings and models alone
-./test.sh        # the gate: fmt, clippy -D warnings, tests
+./install.sh              # app, shell extension, and the shortcut
+./install.sh --app-only   # skip the extension
+./uninstall.sh            # reverses it; leaves your settings and models alone
+./test.sh                 # the gate: fmt, clippy -D warnings, tests
 ```
 
 Open Scribe once afterwards to download the speech model. It is about 670 MB and
@@ -64,11 +65,17 @@ is only a preview — it comes from the streaming model, and the text actually
 delivered is the accurate one, with better punctuation. Turn it off in settings
 if you would rather not have a second model resident.
 
-The first time Scribe types into another window, GNOME asks whether to allow it.
-That is the RemoteDesktop portal, and saying yes once is the whole of the
-setup — the grant is remembered until you revoke it in Settings → Privacy.
-Saying no is fine too: Scribe falls back to putting the transcript on the
-clipboard and telling you so.
+Typing into another application's window is something Wayland does not let a
+client do, so Scribe ships a small GNOME Shell extension that does it from
+inside the compositor. `./install.sh` installs and enables it. It needs no
+permission of any kind, and it only answers Scribe — every call has its sender
+checked against Scribe's own bus name.
+
+**A newly installed extension is only picked up at the next login.** Until you
+log out and back in, Scribe falls back to the RemoteDesktop portal, which asks
+once for permission and works fine; the settings window says which of the two
+is in use. If you refuse the portal as well, the transcript goes to the
+clipboard and Scribe tells you so.
 
 ### Vocabulary
 
@@ -108,7 +115,10 @@ src/
     cleanup.rs      the local language model
     inject.rs       typing into somebody else's window
     portal.rs       xdg-desktop-portal over gio D-Bus
+    shell.rs        the companion extension's client half
+    tray.rs         the panel icon
     shortcut.rs     the GNOME keybinding
+extension/          the GNOME Shell extension that types the text
 ```
 
 **The application owns the store.** Widgets emit intent — "settings changed",

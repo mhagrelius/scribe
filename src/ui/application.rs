@@ -393,7 +393,7 @@ impl ScribeApplication {
         // Only worth offering when it is the thing standing in the way.
         if config.delivery == Delivery::Type {
             if let Some(typist) = self.imp().typist.borrow().as_ref() {
-                if typist.was_refused() {
+                if typist.was_refused() && !typist.via_extension() {
                     entries.push(tray::MenuEntry::item("Allow Typing…", ACTION_PERMISSION));
                 }
             }
@@ -591,6 +591,7 @@ impl ScribeApplication {
                 config.delivery == Delivery::Type,
                 typist.is_ready(),
                 typist.was_refused(),
+                typist.via_extension(),
             );
         }
 

@@ -5,6 +5,8 @@ cd "$(dirname "$0")"
 
 PREFIX="${PREFIX:-$HOME/.local}"
 APP_ID="us.hagreli.Scribe"
+EXT_UUID="scribe@hagreli.us"
+EXT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$EXT_UUID"
 
 # Take the keyboard shortcut back out of GNOME before the binary goes, so the
 # key stops being bound to a command that no longer exists.
@@ -21,6 +23,11 @@ PY
     gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$UPDATED"
   fi
 fi
+
+if command -v gnome-extensions >/dev/null; then
+  gnome-extensions disable "$EXT_UUID" 2>/dev/null || true
+fi
+rm -rf "$EXT_DIR"
 
 rm -f "$PREFIX/bin/scribe" \
       "$PREFIX/share/applications/$APP_ID.desktop" \
