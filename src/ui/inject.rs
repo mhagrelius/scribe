@@ -54,6 +54,10 @@ enum State {
 struct Queued {
     text: String,
     done: Box<dyn Fn(Delivered)>,
+    /// How many sessions this text has already been tried against. A closed
+    /// session earns one retry; a second failure means something else is
+    /// wrong and the clipboard is the honest answer.
+    attempts: u8,
 }
 
 /// Owns the portal session and hands out keystrokes.
@@ -65,6 +69,8 @@ pub struct Typist {
     pending: RefCell<Vec<Queued>>,
     /// Called when GNOME is about to ask the user for permission.
     on_prompt: RefCell<Option<Box<dyn Fn()>>>,
+    /// Watches for GNOME closing the session out from under us.
+    closed: RefCell<Option<gio::SignalSubscription>>,
 }
 
 impl Default for Typist {
@@ -81,6 +87,7 @@ impl Typist {
             state: Cell::new(State::Idle),
             pending: RefCell::new(Vec::new()),
             on_prompt: RefCell::new(None),
+            closed: RefCell::new(None),
         }
     }
 
@@ -120,6 +127,19 @@ impl Typist {
     /// Ask for permission now, rather than in the middle of a dictation.
     pub fn request_permission(self: &Rc<Self>) {
         self.allow_retry();
+        self.ensure_session();
+    }
+
+    /// Open the session if it is not already open, without reopening a
+    /// question the user has answered.
+    ///
+    /// Called when dictation starts rather than when the transcript is ready,
+    /// so a session GNOME closed since last time is found and replaced during
+    /// the seconds the user spends talking, instead of failing afterwards.
+    pub fn ensure_session(self: &Rc<Self>) {
+        if self.state.get() != State::Idle {
+            return;
+        }
         if let Some(connection) = self.connection.clone() {
             self.start(connection);
         }
@@ -164,10 +184,20 @@ impl Typist {
             State::Ready => {
                 let session = self.session.borrow().clone();
                 match session {
-                    Some(session) => {
-                        type_text(&connection, &session, text);
-                        done(Delivered::Typed);
-                    }
+                    Some(session) => match type_text(&connection, &session, text) {
+                        Ok(()) => done(Delivered::Typed),
+                        Err(error) => {
+                            // GNOME closes remote-desktop sessions on its own
+                            // schedule. A handle that worked an hour ago is
+                            // simply gone, and before this the app went on
+                            // using it and failing every dictation for the
+                            // rest of the run.
+                            eprintln!("scribe: the typing session ended ({error}); reopening");
+                            self.invalidate();
+                            self.queue_with(text, Box::new(done), 1);
+                            self.start(connection);
+                        }
+                    },
                     None => {
                         copy_to_clipboard(text);
                         done(Delivered::Copied);
@@ -191,10 +221,46 @@ impl Typist {
     }
 
     fn queue(&self, text: &str, done: impl Fn(Delivered) + 'static) {
+        self.queue_with(text, Box::new(done), 0);
+    }
+
+    fn queue_with(&self, text: &str, done: Box<dyn Fn(Delivered)>, attempts: u8) {
         self.pending.borrow_mut().push(Queued {
             text: text.to_string(),
-            done: Box::new(done),
+            done,
+            attempts,
         });
+    }
+
+    /// Notice when GNOME ends the session, rather than finding out by failing.
+    ///
+    /// The portal emits `Closed` on the session object. Without this the
+    /// Typist sits in `Ready` holding a handle the compositor has forgotten,
+    /// and every dictation from then on dies with `Invalid session`.
+    fn watch_for_close(self: &Rc<Self>, connection: &gio::DBusConnection, session: &str) {
+        let this = self.clone();
+        let watch = connection.subscribe_to_signal(
+            Some(portal::NAME),
+            Some("org.freedesktop.portal.Session"),
+            Some("Closed"),
+            Some(session),
+            None,
+            gio::DBusSignalFlags::NONE,
+            move |_| {
+                this.invalidate();
+            },
+        );
+        *self.closed.borrow_mut() = Some(watch);
+    }
+
+    /// The session handle is no longer good. Ask for another one next time
+    /// rather than failing every dictation from here on.
+    fn invalidate(&self) {
+        *self.session.borrow_mut() = None;
+        let _ = self.closed.borrow_mut().take();
+        if self.state.get() == State::Ready {
+            self.state.set(State::Idle);
+        }
     }
 
     /// Take everything waiting. The borrow is released before any callback
@@ -292,6 +358,7 @@ impl Typist {
                     Self::save_token(&token);
                 }
                 this.state.set(State::Ready);
+                this.watch_for_close(&connection, &for_flush);
 
                 // The compositor drops input sent immediately after Start, so
                 // the first character of the first dictation goes missing
@@ -301,8 +368,22 @@ impl Typist {
                 let session = for_flush.clone();
                 glib::timeout_add_local_once(std::time::Duration::from_millis(120), move || {
                     for queued in this.take_pending() {
-                        type_text(&connection, &session, &queued.text);
-                        (queued.done)(Delivered::Typed);
+                        match type_text(&connection, &session, &queued.text) {
+                            Ok(()) => (queued.done)(Delivered::Typed),
+                            Err(error) if queued.attempts < 1 => {
+                                eprintln!("scribe: typing failed ({error}); trying once more");
+                                this.invalidate();
+                                this.queue_with(&queued.text, queued.done, queued.attempts + 1);
+                                this.start(connection.clone());
+                            }
+                            Err(error) => {
+                                eprintln!(
+                                    "scribe: could not type into the focused window: {error}"
+                                );
+                                copy_to_clipboard(&queued.text);
+                                (queued.done)(Delivered::Copied);
+                            }
+                        }
                     }
                 });
             },
@@ -339,11 +420,21 @@ pub fn keysym_for(ch: char) -> u32 {
     }
 }
 
-fn type_text(connection: &gio::DBusConnection, session: &str, text: &str) {
+/// Type `text` through the portal, or say why it could not.
+///
+/// The failure that matters is `AccessDenied: Invalid session`: GNOME closes a
+/// remote-desktop session on its own schedule, and a session handle that
+/// worked ten minutes ago is simply gone. The caller re-creates and retries
+/// rather than treating this as the end of the road.
+fn type_text(
+    connection: &gio::DBusConnection,
+    session: &str,
+    text: &str,
+) -> Result<(), glib::Error> {
     for ch in text.chars() {
         let keysym = keysym_for(ch) as i32;
         for state in [1u32, 0u32] {
-            let result = connection.call_sync(
+            connection.call_sync(
                 Some(portal::NAME),
                 portal::PATH,
                 INTERFACE,
@@ -358,14 +449,10 @@ fn type_text(connection: &gio::DBusConnection, session: &str, text: &str) {
                 gio::DBusCallFlags::NONE,
                 -1,
                 gio::Cancellable::NONE,
-            );
-            if let Err(error) = result {
-                eprintln!("scribe: could not type into the focused window: {error}");
-                copy_to_clipboard(text);
-                return;
-            }
+            )?;
         }
     }
+    Ok(())
 }
 
 /// Put text on the clipboard.

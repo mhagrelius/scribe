@@ -14,6 +14,7 @@ pub mod overlay;
 pub mod portal;
 pub mod recorder;
 pub mod shortcut;
+pub mod tray;
 pub mod window;
 
 pub use application::ScribeApplication;

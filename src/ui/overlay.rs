@@ -106,12 +106,17 @@ impl Overlay {
 
     fn build(&self) {
         let imp = self.imp();
-        self.set_default_size(340, -1);
+
         self.add_css_class("scribe-overlay");
         self.set_title(Some("Scribe"));
 
+        // A width request rather than a default size: the window is not
+        // resizable, so GTK sizes it to its content and ignores the default.
+        // Without this the window is only as wide as the longest line, and it
+        // changes width as the live preview grows.
         let root = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
+            .width_request(320)
             .spacing(12)
             .margin_top(18)
             .margin_bottom(18)
@@ -143,7 +148,11 @@ impl Overlay {
             .xalign(0.0)
             .wrap(true)
             .wrap_mode(gtk::pango::WrapMode::WordChar)
-            .lines(3)
+            // Two lines are reserved whether or not there is text for them.
+            // The live preview grows a word at a time, and a label that
+            // resizes on every chunk makes the whole window jump.
+            .lines(2)
+            .height_request(34)
             .ellipsize(gtk::pango::EllipsizeMode::End)
             .build();
         detail.add_css_class("dimmed");
@@ -196,6 +205,16 @@ impl Overlay {
         let slot = width / BARS as f64;
         let bar_width = (slot * 0.45).max(2.0);
 
+        // One axis, on a whole pixel, shared by every bar.
+        //
+        // Centring each bar independently with `(height - bar_height) / 2`
+        // puts bars of odd and even height on different half-pixels, and
+        // antialiasing then renders them a pixel apart. The row reads as
+        // sitting below its own centre line even though the arithmetic is
+        // symmetric, so the axis is rounded once here and every bar is drawn
+        // an equal whole number of pixels either side of it.
+        let axis = (height / 2.0).round();
+
         for index in 0..BARS {
             // A fixed profile across the row so the middle is tallest, scaled
             // by the live level: the shape reads as a waveform rather than a
@@ -206,15 +225,14 @@ impl Overlay {
             let floor = 0.06;
             let magnitude = (reach.max(floor * shape.max(0.35))).clamp(0.0, 1.0);
 
-            let bar_height = (magnitude * height).max(2.0);
-            let x = index as f64 * slot + (slot - bar_width) / 2.0;
-            let y = (height - bar_height) / 2.0;
-            rounded_bar(context, x, y, bar_width, bar_height);
+            let half = (magnitude * height / 2.0).round().max(1.0);
+            let x = (index as f64 * slot + (slot - bar_width) / 2.0).round();
+            rounded_bar(context, x, axis - half, bar_width.round(), half * 2.0);
             let _ = context.fill();
         }
 
         // A faint line showing the recent peak, so a level that has just
-        // dropped still shows what it was.
+        // dropped still shows what it was. It sits on the same axis.
         if peak > 0.02 {
             context.set_source_rgba(
                 colour.red() as f64,
@@ -222,9 +240,7 @@ impl Overlay {
                 colour.blue() as f64,
                 0.25,
             );
-            let bar_height = (peak * height).max(2.0);
-            let y = (height - bar_height) / 2.0;
-            rounded_bar(context, 0.0, y, width, 1.5_f64.min(bar_height));
+            rounded_bar(context, 0.0, axis - 1.0, width, 2.0);
             let _ = context.fill();
         }
     }

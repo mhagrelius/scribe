@@ -16,7 +16,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use crate::model::{self, Config, Delivery, LoadOutcome, Mode, Store};
-use crate::ui::{engine, inject, models, overlay, recorder, shortcut, window};
+use crate::ui::{engine, inject, models, overlay, recorder, shortcut, tray, window};
 
 /// Whether a key is one of the ones held down alongside another.
 ///
@@ -96,6 +96,11 @@ fn tail(text: &str) -> &str {
     }
 }
 
+const ACTION_TOGGLE: &str = "toggle";
+const ACTION_SETTINGS: &str = "settings";
+const ACTION_PERMISSION: &str = "permission";
+const ACTION_QUIT: &str = "quit";
+
 /// What Scribe is doing right now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Activity {
@@ -119,6 +124,10 @@ mod imp {
         /// is what would let Scribe exit the moment the settings window is
         /// closed, taking the shortcut with it.
         pub hold: RefCell<Option<gio::ApplicationHoldGuard>>,
+        /// The panel icon. Rebuilt whenever the shell claims the watcher name,
+        /// so it comes back after a shell restart instead of leaving a dead
+        /// item behind.
+        pub tray: RefCell<Option<tray::Tray>>,
         /// Streaming text accumulated across chunks.
         pub partial: RefCell<String>,
         /// Samples not yet handed to the streaming model.
@@ -136,6 +145,7 @@ mod imp {
                 activity: Cell::new(Activity::Idle),
                 download: RefCell::new(None),
                 hold: RefCell::new(None),
+                tray: RefCell::new(None),
                 partial: RefCell::new(String::new()),
                 pending_audio: RefCell::new(Vec::new()),
             }
@@ -179,6 +189,8 @@ mod imp {
                 }
             ));
             *self.typist.borrow_mut() = Some(typist);
+
+            obj.install_tray();
 
             // Scribe is useful with no window open, so the process is held up
             // by this rather than by a window.
@@ -294,6 +306,122 @@ impl ScribeApplication {
     fn save(&self) {
         if let Err(error) = self.imp().store.borrow().save() {
             eprintln!("scribe: {error}");
+        }
+    }
+
+    /// Put an icon in the panel, and keep it there.
+    ///
+    /// The watcher name is followed rather than checked once: at login GNOME
+    /// Shell has usually not claimed it yet, and the same subscription puts
+    /// the icon back after a shell restart, which would otherwise leave a dead
+    /// item in the panel and no way to reach Scribe without a terminal.
+    fn install_tray(&self) {
+        let Ok(connection) = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE)
+        else {
+            return;
+        };
+        gio::bus_watch_name_on_connection(
+            &connection,
+            tray::WATCHER_NAME,
+            gio::BusNameWatcherFlags::NONE,
+            glib::clone!(
+                #[weak(rename_to = app)]
+                self,
+                move |connection, _name, _owner| {
+                    let item = tray::Tray::new(
+                        connection.clone(),
+                        glib::clone!(
+                            #[weak(rename_to = app)]
+                            app,
+                            #[upgrade_or_else]
+                            || tray::View {
+                                entries: Vec::new(),
+                                icon_name: crate::APP_ID.to_string(),
+                            },
+                            move || app.tray_view()
+                        ),
+                        glib::clone!(
+                            #[weak(rename_to = app)]
+                            app,
+                            move |action: &str| app.tray_action(action)
+                        ),
+                    );
+                    if item.is_none() {
+                        glib::g_warning!("scribe", "could not export the tray interfaces");
+                    }
+                    app.imp().tray.replace(item);
+                }
+            ),
+            glib::clone!(
+                #[weak(rename_to = app)]
+                self,
+                move |_connection, _name| {
+                    // Dropping it unexports the interfaces; the appeared
+                    // handler builds a fresh one when the shell returns.
+                    app.imp().tray.replace(None);
+                }
+            ),
+        );
+    }
+
+    /// What the panel menu says right now.
+    fn tray_view(&self) -> tray::View {
+        let config = self.config();
+        let listening = self.imp().activity.get() == Activity::Listening;
+
+        let mut entries = vec![
+            tray::MenuEntry::info(if listening { "Listening…" } else { "Ready" }),
+            tray::MenuEntry::info(&format!(
+                "{} · {}",
+                match config.mode {
+                    Mode::Batch => "Accurate",
+                    Mode::Streaming => "Live",
+                },
+                shortcut::human_label(&config.shortcut)
+            )),
+            tray::MenuEntry::Separator,
+            tray::MenuEntry::item(
+                if listening {
+                    "Stop Dictating"
+                } else {
+                    "Start Dictating"
+                },
+                ACTION_TOGGLE,
+            ),
+        ];
+
+        // Only worth offering when it is the thing standing in the way.
+        if config.delivery == Delivery::Type {
+            if let Some(typist) = self.imp().typist.borrow().as_ref() {
+                if typist.was_refused() {
+                    entries.push(tray::MenuEntry::item("Allow Typing…", ACTION_PERMISSION));
+                }
+            }
+        }
+
+        entries.extend([
+            tray::MenuEntry::Separator,
+            tray::MenuEntry::item("Settings…", ACTION_SETTINGS),
+            tray::MenuEntry::item("Quit", ACTION_QUIT),
+        ]);
+
+        tray::View {
+            entries,
+            icon_name: format!("{}-symbolic", crate::APP_ID),
+        }
+    }
+
+    fn tray_action(&self, action: &str) {
+        match action {
+            ACTION_TOGGLE => self.toggle(),
+            ACTION_SETTINGS => self.present_window(),
+            ACTION_PERMISSION => {
+                if let Some(typist) = self.imp().typist.borrow().clone() {
+                    typist.request_permission();
+                }
+            }
+            ACTION_QUIT => self.quit(),
+            other => glib::g_warning!("scribe", "unknown tray action: {other}"),
         }
     }
 
@@ -659,6 +787,15 @@ impl ScribeApplication {
         if streaming {
             if let Some(engine) = imp.engine.borrow().as_ref() {
                 engine.reset_stream();
+            }
+        }
+
+        // Get the typing session up while the user is talking. Doing it after
+        // the transcript is ready is what left a closed session undetected
+        // until the text had nowhere to go.
+        if config.delivery == Delivery::Type {
+            if let Some(typist) = imp.typist.borrow().as_ref() {
+                typist.ensure_session();
             }
         }
 

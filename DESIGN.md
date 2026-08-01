@@ -136,6 +136,30 @@ nothing. The queue now carries each caller's callback and fires it when the
 portal actually answers, permission has a row in settings with a way to ask
 again, and the dialog is announced before it appears.
 
+**Typing stopped working after a while, and said nothing.** GNOME closes a
+RemoteDesktop session on its own schedule; the handle then returns
+`AccessDenied: Invalid session` forever. Scribe held that dead handle in a
+`Ready` state and every dictation from then on failed into the clipboard. The
+session is now opened when dictation *starts* rather than when the transcript
+is ready, so a closed one is replaced during the seconds spent talking; the
+portal's `Closed` signal is watched; and a failed keystroke invalidates the
+session and retries once against a fresh one before giving up.
+
+**The panel icon is `llama-tray`'s, twice removed.** StatusNotifierItem and
+`com.canonical.dbusmenu` implemented directly on the gio connection, because
+`ksni` brings zbus and a tokio runtime into a process that is a glib main loop.
+The watcher name is followed rather than checked once, so the icon survives a
+shell restart.
+
+**The meter sat below its own centre line.** Two causes, both small: a
+`margin-top` on the drawing area shrank it from one side while the bars centred
+themselves in what was left, and centring each bar with
+`(height - bar_height) / 2` put odd and even heights on different half-pixels,
+which antialiasing rendered a pixel apart. There is now one rounded axis and
+every bar is drawn a whole number of pixels either side of it.
+`examples/preview.rs` renders the window offscreen so this is checkable without
+screenshotting a live session.
+
 ## Settled
 
 - Application id `us.hagreli.Scribe`, binary `scribe`

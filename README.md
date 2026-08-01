@@ -51,6 +51,11 @@ The tidying pass wants an OpenAI-shaped endpoint on `127.0.0.1:8080` — a
 
 ## Using it
 
+Scribe sits in the panel. The icon's menu says whether it is listening, names
+the shortcut, and offers Start Dictating, Settings and Quit — so there is
+somewhere to click when no window is open.
+
+
 **Super+Alt+D** starts and stops dictation. Change it in the window; Scribe
 registers it with GNOME so it keeps working after a reboot.
 
@@ -138,6 +143,7 @@ That is a bad trade for one key.
 cargo run                                  # the app
 XDG_CONFIG_HOME=/tmp/scratch cargo run     # with throwaway settings
 cargo run -- --toggle                      # what the shortcut does
+cargo run --example preview -- /tmp/preview # render the recording window
 ```
 
 ### Tests
