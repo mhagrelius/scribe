@@ -1,8 +1,8 @@
-# Flatpak manifest for Mynah.
+# Flatpak manifest for Scribe.
 #
 # Build:  packaging/build-flatpak.sh
 
-id: us.hagreli.Mynah
+id: us.hagreli.Scribe
 
 # GNOME 50 is the first runtime carrying libadwaita 1.9 and GTK 4.22, which
 # this is compiled against.
@@ -13,7 +13,7 @@ sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
 
-command: mynah
+command: scribe
 
 finish-args:
   - --socket=wayland
@@ -32,7 +32,7 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
 
   # Registering the keyboard shortcut with gnome-settings-daemon. A sandboxed
-  # Mynah cannot write another app's dconf keys without this, and without the
+  # Scribe cannot write another app's dconf keys without this, and without the
   # shortcut there is no way to start dictating.
   - --system-talk-name=org.freedesktop.login1
   - --talk-name=ca.desrt.dconf
@@ -50,23 +50,23 @@ finish-args:
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin
   env:
-    CARGO_HOME: /run/build/mynah/cargo
+    CARGO_HOME: /run/build/scribe/cargo
 
 modules:
-  - name: mynah
+  - name: scribe
     buildsystem: simple
     build-commands:
       - cargo --offline fetch --manifest-path Cargo.toml --verbose
       - cargo --offline build --release --locked
-      - install -Dm755 target/release/mynah /app/bin/mynah
-      - install -Dm644 data/us.hagreli.Mynah.desktop
-          /app/share/applications/us.hagreli.Mynah.desktop
-      - install -Dm644 data/us.hagreli.Mynah.metainfo.xml
-          /app/share/metainfo/us.hagreli.Mynah.metainfo.xml
-      - install -Dm644 data/icons/hicolor/scalable/apps/us.hagreli.Mynah.svg
-          /app/share/icons/hicolor/scalable/apps/us.hagreli.Mynah.svg
-      - install -Dm644 data/icons/hicolor/symbolic/apps/us.hagreli.Mynah-symbolic.svg
-          /app/share/icons/hicolor/symbolic/apps/us.hagreli.Mynah-symbolic.svg
+      - install -Dm755 target/release/scribe /app/bin/scribe
+      - install -Dm644 data/us.hagreli.Scribe.desktop
+          /app/share/applications/us.hagreli.Scribe.desktop
+      - install -Dm644 data/us.hagreli.Scribe.metainfo.xml
+          /app/share/metainfo/us.hagreli.Scribe.metainfo.xml
+      - install -Dm644 data/icons/hicolor/scalable/apps/us.hagreli.Scribe.svg
+          /app/share/icons/hicolor/scalable/apps/us.hagreli.Scribe.svg
+      - install -Dm644 data/icons/hicolor/symbolic/apps/us.hagreli.Scribe-symbolic.svg
+          /app/share/icons/hicolor/symbolic/apps/us.hagreli.Scribe-symbolic.svg
     sources:
       - type: dir
         path: ../..

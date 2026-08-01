@@ -1,6 +1,6 @@
 //! Fetching the speech models.
 //!
-//! The models are not shipped with Mynah. They are NVIDIA's, they are hundreds
+//! The models are not shipped with Scribe. They are NVIDIA's, they are hundreds
 //! of megabytes each, and they are downloaded on first use into the user's own
 //! data directory. Nothing here runs without being asked for.
 //!

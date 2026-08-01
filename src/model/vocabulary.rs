@@ -129,8 +129,8 @@ mod tests {
 
     #[test]
     fn rewrites_a_misheard_name() {
-        let v = vocab(&[("mina", "Mynah")]);
-        assert_eq!(v.apply("I opened mina again"), "I opened Mynah again");
+        let v = vocab(&[("mina", "Scribe")]);
+        assert_eq!(v.apply("I opened mina again"), "I opened Scribe again");
     }
 
     #[test]

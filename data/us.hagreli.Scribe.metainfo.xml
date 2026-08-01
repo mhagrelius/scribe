@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>us.hagreli.Mynah</id>
+  <id>us.hagreli.Scribe</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
-  <name>Mynah</name>
+  <name>Scribe</name>
   <summary>Speak, and it types</summary>
   <description>
     <p>
-      Mynah is dictation for the GNOME desktop. Press a shortcut, say what you
+      Scribe is dictation for the GNOME desktop. Press a shortcut, say what you
       mean, press it again, and the words appear in whatever window you were
       already working in — a terminal, a browser, an editor. Speech recognition
       runs on this machine, so nothing you dictate leaves it.
@@ -20,7 +20,7 @@
       <li>An optional tidying pass through a local language model, to drop the "um"s</li>
     </ul>
   </description>
-  <launchable type="desktop-id">us.hagreli.Mynah.desktop</launchable>
+  <launchable type="desktop-id">us.hagreli.Scribe.desktop</launchable>
   <categories>
     <category>Utility</category>
     <category>Accessibility</category>
@@ -50,6 +50,6 @@
   <developer id="us.hagreli">
     <name>Matthew Hagrelius</name>
   </developer>
-  <url type="homepage">https://github.com/mhagrelius/mynah</url>
-  <url type="bugtracker">https://github.com/mhagrelius/mynah/issues</url>
+  <url type="homepage">https://github.com/mhagrelius/scribe</url>
+  <url type="bugtracker">https://github.com/mhagrelius/scribe/issues</url>
 </component>

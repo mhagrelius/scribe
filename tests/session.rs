@@ -2,9 +2,9 @@
 //!
 //! These are the paths a user takes over time rather than in one sitting:
 //! settings written today and read next week, a file corrupted by something
-//! else, a Mynah newer than this one having been here first.
+//! else, a Scribe newer than this one having been here first.
 
-use mynah::model::{polish, Config, Delivery, LoadOutcome, Mode, Rule, Store, Vocabulary};
+use scribe::model::{polish, Config, Delivery, LoadOutcome, Mode, Rule, Store, Vocabulary};
 
 fn temp() -> tempfile::TempDir {
     tempfile::tempdir().expect("temp dir")
@@ -23,7 +23,7 @@ fn settings_survive_a_restart() {
             delivery: Delivery::Clipboard,
             shortcut: "<Super>d".into(),
             cleanup: true,
-            vocabulary: Vocabulary::from_rules(vec![Rule::new("mina", "Mynah")]),
+            vocabulary: Vocabulary::from_rules(vec![Rule::new("mina", "Scribe")]),
             ..Config::default()
         });
         store.save().expect("save");
@@ -40,7 +40,7 @@ fn settings_survive_a_restart() {
 }
 
 #[test]
-fn a_config_from_an_older_mynah_keeps_working() {
+fn a_config_from_an_older_scribe_keeps_working() {
     // Written before `spell_numbers`, `delivery` and `vocabulary` existed.
     let dir = temp();
     let path = dir.path().join("config.json");
@@ -79,7 +79,7 @@ fn a_file_mangled_by_something_else_does_not_lose_the_user_their_app() {
     assert!(aside.exists());
     assert_eq!(store.config(), &Config::default());
 
-    // Mynah carries on and the next save works.
+    // Scribe carries on and the next save works.
     store.set_config(Config {
         shortcut: "<Super>v".into(),
         ..Config::default()

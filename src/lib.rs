@@ -1,4 +1,4 @@
-//! Mynah — dictation for the GNOME desktop.
+//! Scribe — dictation for the GNOME desktop.
 //!
 //! The split is the same one the sibling apps use. `model` is the part that
 //! could be reasoned about on paper: settings, the vocabulary rules, the
@@ -14,4 +14,4 @@
 pub mod model;
 pub mod ui;
 
-pub const APP_ID: &str = "us.hagreli.Mynah";
+pub const APP_ID: &str = "us.hagreli.Scribe";

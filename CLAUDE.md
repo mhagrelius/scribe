@@ -1,4 +1,4 @@
-# Mynah
+# Scribe
 
 Dictation for GNOME. A global shortcut records, a local speech model
 transcribes, and the text is typed into whatever window has focus.
@@ -31,7 +31,7 @@ data/        desktop entry, metainfo, icons
 
 ## Conventions
 
-- **The application owns the store.** `MynahApplication` is the only thing that
+- **The application owns the store.** `ScribeApplication` is the only thing that
   reads or writes `config.json`. Widgets emit intent signals and are told what
   to show; they never touch the file.
 - **`model/` imports no GTK.** If something needs a display it belongs in
@@ -61,7 +61,7 @@ than push-to-talk. Do not "fix" this by reaching for the portal again without
 re-testing `CreateSession`.
 
 The clipboard goes through `wl-copy`, not GDK, because a Wayland client with no
-focused surface cannot take the selection — and Mynah never has focus when a
+focused surface cannot take the selection — and Scribe never has focus when a
 dictation ends. Both are written up in `DESIGN.md` under "Built differently, or
 not built"; append there rather than editing the design when reality diverges.
 

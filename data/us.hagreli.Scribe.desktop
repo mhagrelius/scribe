@@ -1,19 +1,19 @@
 [Desktop Entry]
-Name=Mynah
+Name=Scribe
 GenericName=Dictation
 Comment=Speak, and it types
 Keywords=dictation;speech;voice;transcribe;stt;microphone;
-Exec=mynah
-Icon=us.hagreli.Mynah
+Exec=scribe
+Icon=us.hagreli.Scribe
 Terminal=false
 Type=Application
 Categories=GTK;GNOME;Utility;Accessibility;
 StartupNotify=true
 # Matches the application ID so the shell pairs the window with this entry.
-StartupWMClass=us.hagreli.Mynah
+StartupWMClass=us.hagreli.Scribe
 DBusActivatable=true
 Actions=toggle;
 
 [Desktop Action toggle]
 Name=Start Dictating
-Exec=mynah --toggle
+Exec=scribe --toggle

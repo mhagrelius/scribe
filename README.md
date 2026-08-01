@@ -1,4 +1,4 @@
-# Mynah
+# Scribe
 
 Speak, and it types.
 
@@ -36,8 +36,8 @@ leaves it.
 ./test.sh        # the gate: fmt, clippy -D warnings, tests
 ```
 
-Open Mynah once afterwards to download the speech model. It is about 670 MB and
-lands in `~/.local/share/mynah/models`.
+Open Scribe once afterwards to download the speech model. It is about 670 MB and
+lands in `~/.local/share/scribe/models`.
 
 ### Requirements
 
@@ -46,17 +46,17 @@ GTK 4.22 and libadwaita 1.9 (GNOME 49 or newer), PipeWire's `pw-record`
 toolchain of 1.80 or later.
 
 The tidying pass wants an OpenAI-shaped endpoint on `127.0.0.1:8080` — a
-`llama-server`, say. It is off by default and Mynah works without it.
+`llama-server`, say. It is off by default and Scribe works without it.
 
 ## Using it
 
-**Ctrl+Alt+D** starts and stops dictation. Change it in the window; Mynah
+**Super+Alt+D** starts and stops dictation. Change it in the window; Scribe
 registers it with GNOME so it keeps working after a reboot.
 
-The first time Mynah types into another window, GNOME asks whether to allow it.
+The first time Scribe types into another window, GNOME asks whether to allow it.
 That is the RemoteDesktop portal, and saying yes once is the whole of the
 setup — the grant is remembered until you revoke it in Settings → Privacy.
-Saying no is fine too: Mynah falls back to putting the transcript on the
+Saying no is fine too: Scribe falls back to putting the transcript on the
 clipboard and telling you so.
 
 ### Vocabulary
@@ -114,7 +114,7 @@ its own. No tokio, no ashpd.
 ### Why the shortcut is a toggle and not push-to-talk
 
 The GlobalShortcuts portal hands out key press *and* release, which is exactly
-what push-to-talk needs. It refuses to talk to Mynah. Since
+what push-to-talk needs. It refuses to talk to Scribe. Since
 xdg-desktop-portal 1.21 the interface requires an application identity, and the
 mechanism a non-Flatpak app would use to declare one —
 `org.freedesktop.host.portal.Registry` — is not exported by the portal on this

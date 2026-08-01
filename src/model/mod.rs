@@ -1,4 +1,4 @@
-//! The parts of Mynah that need no display.
+//! The parts of Scribe that need no display.
 
 pub mod config;
 pub mod numbers;

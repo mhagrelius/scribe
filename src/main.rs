@@ -1,8 +1,8 @@
 use gtk::prelude::*;
-use mynah::ui::MynahApplication;
+use scribe::ui::ScribeApplication;
 
 fn main() -> gtk::glib::ExitCode {
-    gtk::glib::set_application_name("Mynah");
-    gtk::glib::set_prgname(Some(mynah::APP_ID));
-    MynahApplication::new().run()
+    gtk::glib::set_application_name("Scribe");
+    gtk::glib::set_prgname(Some(scribe::APP_ID));
+    ScribeApplication::new().run()
 }

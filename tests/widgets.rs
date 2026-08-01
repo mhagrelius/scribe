@@ -8,8 +8,8 @@
 //! each panic so one failure does not hide the rest.
 
 use adw::prelude::*;
-use mynah::model::{Config, Delivery, Mode, Rule, Vocabulary};
-use mynah::ui::{shortcut, window::Window};
+use scribe::model::{Config, Delivery, Mode, Rule, Vocabulary};
+use scribe::ui::{shortcut, window::Window};
 
 /// Runs named cases, collecting failures rather than stopping at the first.
 struct Runner {
@@ -48,17 +48,22 @@ impl Runner {
     }
 }
 
+/// The shortcut Scribe ships with.
+fn default_shortcut() -> String {
+    Config::default().shortcut
+}
+
 /// One application for the whole run.
 ///
 /// The id differs from the real one on purpose: sharing it would register this
-/// process as a remote for a running Mynah and hand it the commands. It is
+/// process as a remote for a running Scribe and hand it the commands. It is
 /// registered up front because `GtkApplication` warns — and under
 /// `G_DEBUG=fatal-criticals` aborts — on a window added before startup has
 /// been emitted, and it is built only once because a second registration of
 /// the same id collides on the bus.
 fn test_application() -> adw::Application {
     let app = adw::Application::builder()
-        .application_id("us.hagreli.Mynah.Test")
+        .application_id("us.hagreli.Scribe.Test")
         .flags(gio::ApplicationFlags::IS_SERVICE)
         .build();
     app.register(gio::Cancellable::NONE)
@@ -101,7 +106,7 @@ fn widgets() {
         let window = test_window();
         let config = Config {
             vocabulary: Vocabulary::from_rules(vec![
-                Rule::new("mina", "Mynah"),
+                Rule::new("mina", "Scribe"),
                 Rule::new("kubernetes", "k8s"),
             ]),
             ..Config::default()
@@ -110,7 +115,7 @@ fn widgets() {
         let read = window.read_config(&Config::default());
         assert_eq!(read.vocabulary.rules().len(), 2);
         assert_eq!(read.vocabulary.rules()[0].heard, "mina");
-        assert_eq!(read.vocabulary.rules()[0].write, "Mynah");
+        assert_eq!(read.vocabulary.rules()[0].write, "Scribe");
         assert_eq!(read.vocabulary.rules()[1].write, "k8s");
     });
 
@@ -121,7 +126,7 @@ fn widgets() {
             // appends the rules again each time.
             let window = test_window();
             let config = Config {
-                vocabulary: Vocabulary::from_rules(vec![Rule::new("mina", "Mynah")]),
+                vocabulary: Vocabulary::from_rules(vec![Rule::new("mina", "Scribe")]),
                 ..Config::default()
             };
             window.show_config(&config);
@@ -192,6 +197,27 @@ fn widgets() {
         assert!(shortcut::is_parsable("<Super>space"));
         assert!(!shortcut::is_parsable("not an accelerator"));
         assert!(!shortcut::is_parsable(""));
+    });
+
+    runner.case("a shortcut GNOME already owns is reported as taken", || {
+        // The bug this exists for: Ctrl+Alt+D was the shipped default, and it
+        // is GNOME's Show Desktop. GNOME spells it "<Primary><Alt>d", so a
+        // string comparison finds nothing and both actions fire.
+        if shortcut::is_supported() {
+            let taken = shortcut::conflict("<Control><Alt>d");
+            assert_eq!(
+                taken.as_deref(),
+                Some("show-desktop"),
+                "Ctrl+Alt+D must be recognised as GNOME's own"
+            );
+            // And the shipped default must not collide with anything.
+            let default = default_shortcut();
+            assert_eq!(
+                shortcut::conflict(&default),
+                None,
+                "the default shortcut {default} is already used by GNOME"
+            );
+        }
     });
 
     runner.case("an accelerator is shown the way a person reads it", || {

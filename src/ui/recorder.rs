@@ -7,7 +7,7 @@
 //! shape Magpie uses to follow a downloader.
 //!
 //! Samples come back as 16-bit little-endian mono at 16 kHz, which is what
-//! both speech models want, so PipeWire does the resampling and Mynah does
+//! both speech models want, so PipeWire does the resampling and Scribe does
 //! none. They are handed on as `f32` in −1.0..1.0, the form the models take.
 
 use gio::prelude::*;

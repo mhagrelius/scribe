@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="feather" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#99c1f1"/>
+      <stop offset="0.55" stop-color="#3584e4"/>
+      <stop offset="1" stop-color="#1a5fb4"/>
+    </linearGradient>
+    <linearGradient id="nib" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6f5f4"/>
+      <stop offset="1" stop-color="#9a9996"/>
+    </linearGradient>
+  </defs>
+
+  <!-- The quill. A scribe writes down what is said, which is the name and the
+       whole of the app. -->
+  <g transform="rotate(8 64 64)">
+    <!-- Vane -->
+    <path fill="url(#feather)"
+          d="M96 12c-30 4-49 22-58 44-4 10-6 20-7 29l40-16c14-6 23-17 26-31 2-9 1-18-1-26z"/>
+    <!-- Shaft, running from the tip of the vane down to the nib. -->
+    <path fill="#1a5fb4" opacity="0.5" d="M95 14 36 92l-4-3 59-78z"/>
+    <!-- Nib -->
+    <path fill="url(#nib)" d="M32 89l6 4-10 15z"/>
+  </g>
+
+  <!-- What is being said. The same meter the recording window draws. -->
+  <g fill="none" stroke="#62a0ea" stroke-linecap="round" stroke-width="8">
+    <path d="M16 100v10" opacity="0.55"/>
+    <path d="M36 94v22" opacity="0.8"/>
+    <path d="M56 88v34"/>
+    <path d="M76 96v18" opacity="0.8"/>
+    <path d="M96 101v8" opacity="0.55"/>
+  </g>
+</svg>

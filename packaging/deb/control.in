@@ -1,4 +1,4 @@
-Package: mynah
+Package: scribe
 Version: @VERSION@
 Section: utils
 Priority: optional
@@ -6,9 +6,9 @@ Architecture: @ARCH@
 Depends: @DEPENDS@
 Recommends: pipewire-bin, wl-clipboard
 Maintainer: Matthew Hagrelius <matthew@hagreli.us>
-Homepage: https://github.com/mhagrelius/mynah
+Homepage: https://github.com/mhagrelius/scribe
 Description: Dictation for the GNOME desktop
- Mynah puts a global shortcut on your keyboard: press it, say what you
+ Scribe puts a global shortcut on your keyboard: press it, say what you
  mean, press it again, and the words appear in whatever window you were
  already working in.
  .

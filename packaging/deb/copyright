@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: mynah
-Source: https://github.com/hagrelius/mynah
+Upstream-Name: scribe
+Source: https://github.com/hagrelius/scribe
 
 Files: *
 Copyright: 2026 Matthew Hagrelius

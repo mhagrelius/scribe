@@ -66,7 +66,7 @@ mod imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for Overlay {
-        const NAME: &'static str = "MynahOverlay";
+        const NAME: &'static str = "ScribeOverlay";
         type Type = super::Overlay;
         type ParentType = adw::Window;
     }
@@ -107,8 +107,8 @@ impl Overlay {
     fn build(&self) {
         let imp = self.imp();
         self.set_default_size(340, -1);
-        self.add_css_class("mynah-overlay");
-        self.set_title(Some("Mynah"));
+        self.add_css_class("scribe-overlay");
+        self.set_title(Some("Scribe"));
 
         let root = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -154,7 +154,7 @@ impl Overlay {
         root.append(&header);
 
         let meter = gtk::DrawingArea::builder().content_height(28).build();
-        meter.add_css_class("mynah-meter");
+        meter.add_css_class("scribe-meter");
         meter.set_draw_func(glib::clone!(
             #[weak(rename_to = overlay)]
             self,

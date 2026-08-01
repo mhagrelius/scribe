@@ -9,9 +9,9 @@
 //! not stand in for it: the call still comes back `NotAllowed: An app id is
 //! required`. That was measured, not assumed.
 //!
-//! So Mynah registers a custom keybinding with gnome-settings-daemon, the same
+//! So Scribe registers a custom keybinding with gnome-settings-daemon, the same
 //! way the Settings app's own Keyboard panel does, and that binding runs
-//! `mynah --toggle`. It needs no consent dialog, no portal and no privileges,
+//! `scribe --toggle`. It needs no consent dialog, no portal and no privileges,
 //! and it survives reboots because it is stored in dconf rather than held by
 //! this process.
 //!
@@ -25,8 +25,23 @@ use gio::prelude::*;
 
 const MEDIA_KEYS: &str = "org.gnome.settings-daemon.plugins.media-keys";
 const CUSTOM_KEYBINDING: &str = "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding";
-const PATH: &str = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mynah/";
-const NAME: &str = "Mynah dictation";
+const PATH: &str = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/scribe/";
+const NAME: &str = "Scribe dictation";
+
+/// Where GNOME keeps the shortcuts it has already spoken for.
+///
+/// Registering a binding GNOME also holds does not fail and does not warn: both
+/// actions fire, and the user is left with an app that dictates *and* minimises
+/// every window. The default shipped here was `<Control><Alt>d` until exactly
+/// that happened — it is GNOME's Show Desktop, spelled `<Primary><Alt>d`, and
+/// `<Primary>` is an alias for Control.
+const RESERVED_SCHEMAS: &[&str] = &[
+    "org.gnome.desktop.wm.keybindings",
+    "org.gnome.shell.keybindings",
+    "org.gnome.mutter.keybindings",
+    "org.gnome.mutter.wayland.keybindings",
+    "org.gnome.settings-daemon.plugins.media-keys",
+];
 
 /// Why a shortcut could not be registered.
 #[derive(Debug)]
@@ -43,11 +58,14 @@ impl std::fmt::Display for ShortcutError {
             ShortcutError::Unsupported => write!(
                 f,
                 "This desktop does not provide GNOME's custom keyboard shortcuts, \
-                 so Mynah cannot register one. Bind a shortcut to “mynah --toggle” \
+                 so Scribe cannot register one. Bind a shortcut to “scribe --toggle” \
                  in your desktop's own keyboard settings instead."
             ),
             ShortcutError::Unparsable(accel) => {
-                write!(f, "“{accel}” is not a keyboard shortcut Mynah understands.")
+                write!(
+                    f,
+                    "“{accel}” is not a keyboard shortcut Scribe understands."
+                )
             }
         }
     }
@@ -67,7 +85,7 @@ pub fn is_supported() -> bool {
 
 /// The command the shortcut runs.
 ///
-/// An absolute path rather than a bare `mynah`: gnome-settings-daemon spawns
+/// An absolute path rather than a bare `scribe`: gnome-settings-daemon spawns
 /// with its own environment, and a binary installed under `~/.local/bin` is
 /// not reliably on the `PATH` it inherits.
 fn command() -> String {
@@ -75,7 +93,7 @@ fn command() -> String {
         .ok()
         .filter(|path| path.is_absolute())
         .map(|path| path.display().to_string())
-        .unwrap_or_else(|| "mynah".to_string());
+        .unwrap_or_else(|| "scribe".to_string());
     format!("{binary} --toggle")
 }
 
@@ -88,6 +106,54 @@ pub fn is_parsable(accel: &str) -> bool {
     // the void symbol, or for an empty string a keyval of zero. Neither has a
     // key name, which is the one check that catches both.
     parsed.0 != gtk::gdk::Key::VoidSymbol && parsed.0.name().is_some()
+}
+
+/// Two accelerators are the same key if they parse to the same key and
+/// modifiers, whatever they are spelled like.
+///
+/// This has to go through the parser rather than compare strings, because
+/// GNOME writes `<Primary>` where the Keyboard panel shows Ctrl, and a string
+/// comparison would miss every collision that matters.
+fn same_key(a: &str, b: &str) -> bool {
+    match (gtk::accelerator_parse(a), gtk::accelerator_parse(b)) {
+        (Some(left), Some(right)) => {
+            left.0 != gtk::gdk::Key::VoidSymbol
+                && left.0.name().is_some()
+                && left.0 == right.0
+                && left.1 == right.1
+        }
+        _ => false,
+    }
+}
+
+/// What GNOME already uses `accel` for, if anything.
+///
+/// Returns the settings key, which is close enough to a human name — GNOME's
+/// own keys read `show-desktop`, `screenshot`, `toggle-overview`.
+pub fn conflict(accel: &str) -> Option<String> {
+    let source = gio::SettingsSchemaSource::default()?;
+    for schema_id in RESERVED_SCHEMAS {
+        let Some(schema) = source.lookup(schema_id, true) else {
+            continue;
+        };
+        let settings = gio::Settings::new(schema_id);
+        for key in schema.list_keys() {
+            // Only the string-array keys are accelerator lists. This has to be
+            // checked before reading: `Settings::strv` on a key of another type
+            // aborts the process rather than returning an error.
+            if schema.key(&key).value_type().as_str() != "as" {
+                continue;
+            }
+            if settings
+                .strv(&key)
+                .iter()
+                .any(|bound| same_key(bound.as_str(), accel))
+            {
+                return Some(key.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// Install or update the binding, so pressing `accel` toggles dictation.
@@ -194,7 +260,7 @@ mod tests {
     fn the_binding_lives_under_a_path_of_our_own() {
         // Reusing GNOME's "custom0" would collide with whatever the user has
         // already bound there.
-        assert!(PATH.ends_with("/mynah/"));
+        assert!(PATH.ends_with("/scribe/"));
         assert!(PATH.starts_with("/org/gnome/settings-daemon/"));
     }
 }

@@ -92,7 +92,7 @@ pub fn request<F>(
 ) where
     F: Fn(u32, glib::Variant) + 'static,
 {
-    let handle_token = token("mynah_");
+    let handle_token = token("scribe_");
     let Some(path) = response_path(connection, &handle_token) else {
         finished(CANCELLED, vdict(vec![]));
         return;
@@ -155,7 +155,7 @@ pub fn request<F>(
                 // The method itself was refused, so no Response will ever come
                 // and the caller would otherwise wait for one indefinitely.
                 if subscription.borrow_mut().take().is_some() {
-                    eprintln!("mynah: portal {method_name} failed: {error}");
+                    eprintln!("scribe: portal {method_name} failed: {error}");
                     finished(CANCELLED, vdict(vec![]));
                 }
             }
@@ -225,13 +225,13 @@ mod tests {
 
     #[test]
     fn session_options_carry_both_tokens() {
-        let options = session_options("mynah_1", "mynahsess");
+        let options = session_options("scribe_1", "scribesess");
         assert_eq!(
             get::<String>(&options, "handle_token").as_deref(),
-            Some("mynah_1")
+            Some("scribe_1")
         );
         assert!(get::<String>(&options, "session_handle_token")
             .expect("session token")
-            .starts_with("mynahsess"));
+            .starts_with("scribesess"));
     }
 }

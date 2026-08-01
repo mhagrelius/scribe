@@ -16,7 +16,7 @@ pub mod recorder;
 pub mod shortcut;
 pub mod window;
 
-pub use application::MynahApplication;
+pub use application::ScribeApplication;
 
 pub const STYLE: &str = include_str!("style.css");
 

@@ -5,7 +5,7 @@
 //! usual answers are `wtype`, which needs a virtual-keyboard protocol Mutter
 //! has said it will not implement; `ydotool`, which needs a uinput device, a
 //! udev rule, a group change and a daemon; and the RemoteDesktop portal, which
-//! needs one consent dialog and nothing else. Mynah uses the portal.
+//! needs one consent dialog and nothing else. Scribe uses the portal.
 //!
 //! The session is created once and kept. `persist_mode` 2 asks the portal to
 //! remember the grant until the user revokes it, and `Start` hands back a
@@ -82,7 +82,7 @@ impl Typist {
 
     fn token_path() -> std::path::PathBuf {
         glib::user_data_dir()
-            .join("mynah")
+            .join("scribe")
             .join("remote-desktop.token")
     }
 
@@ -157,7 +157,7 @@ impl Typist {
             &connection.clone(),
             INTERFACE,
             "CreateSession",
-            |handle_token| portal::tup(vec![portal::session_options(handle_token, "mynahrd")]),
+            |handle_token| portal::tup(vec![portal::session_options(handle_token, "scriberd")]),
             move |code, results| {
                 if code != portal::SUCCESS {
                     this.give_up();
@@ -292,7 +292,7 @@ fn type_text(connection: &gio::DBusConnection, session: &str, text: &str) {
                 gio::Cancellable::NONE,
             );
             if let Err(error) = result {
-                eprintln!("mynah: could not type into the focused window: {error}");
+                eprintln!("scribe: could not type into the focused window: {error}");
                 copy_to_clipboard(text);
                 return;
             }
@@ -304,7 +304,7 @@ fn type_text(connection: &gio::DBusConnection, session: &str, text: &str) {
 ///
 /// `wl-copy` first, and not as a fallback. Taking the Wayland clipboard
 /// through GDK needs a serial from a recent input event on one of our own
-/// surfaces, and Mynah by design has no focused window when a dictation ends —
+/// surfaces, and Scribe by design has no focused window when a dictation ends —
 /// the user is typing in something else. The call succeeds and the clipboard
 /// does not change. `wl-copy` goes through the data-control protocol, which
 /// exists for exactly this case and does not need focus.
@@ -326,13 +326,13 @@ pub fn copy_to_clipboard(text: &str) {
                     gio::Cancellable::NONE,
                     |result| {
                         if let Err(error) = result {
-                            eprintln!("mynah: wl-copy failed: {error}");
+                            eprintln!("scribe: wl-copy failed: {error}");
                         }
                     },
                 );
                 return;
             }
-            Err(error) => eprintln!("mynah: wl-copy could not be started: {error}"),
+            Err(error) => eprintln!("scribe: wl-copy could not be started: {error}"),
         }
     }
     if let Some(display) = gtk::gdk::Display::default() {

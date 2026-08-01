@@ -1,6 +1,6 @@
 //! The settings window.
 //!
-//! Mynah spends almost all of its life with no window open at all — it is a
+//! Scribe spends almost all of its life with no window open at all — it is a
 //! shortcut and an overlay. So this window is not a workspace, it is the place
 //! where the handful of decisions live, and it is laid out as preferences
 //! because that is what it is.
@@ -44,7 +44,7 @@ mod imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for Window {
-        const NAME: &'static str = "MynahWindow";
+        const NAME: &'static str = "ScribeWindow";
         type Type = super::Window;
         type ParentType = adw::ApplicationWindow;
     }
@@ -95,7 +95,7 @@ impl Window {
 
     fn build(&self) {
         let imp = self.imp();
-        self.set_title(Some("Mynah"));
+        self.set_title(Some("Scribe"));
         self.set_default_size(560, 720);
 
         let toolbar = adw::ToolbarView::new();
@@ -103,7 +103,7 @@ impl Window {
 
         let menu = gio::Menu::new();
         menu.append(Some("Keyboard Shortcuts"), Some("win.shortcuts"));
-        menu.append(Some("About Mynah"), Some("app.about"));
+        menu.append(Some("About Scribe"), Some("app.about"));
         menu.append(Some("Quit"), Some("app.quit"));
         let menu_button = gtk::MenuButton::builder()
             .icon_name("open-menu-symbolic")
@@ -321,7 +321,7 @@ impl Window {
 
         // The written-as entry is a suffix widget rather than a field of its
         // own, so it is fished back out by name when the rules are read.
-        unsafe { row.set_data("mynah-write", write.clone()) };
+        unsafe { row.set_data("scribe-write", write.clone()) };
 
         row.connect_changed(glib::clone!(
             #[weak(rename_to = window)]
@@ -414,7 +414,7 @@ impl Window {
             .iter()
             .map(|row| {
                 let write: Option<gtk::Entry> = unsafe {
-                    row.data::<gtk::Entry>("mynah-write")
+                    row.data::<gtk::Entry>("scribe-write")
                         .map(|p| p.as_ref().clone())
                 };
                 Rule {
@@ -459,19 +459,32 @@ impl Window {
         config
     }
 
+    /// Say what the shortcut is, and whether anything is wrong with it.
+    ///
+    /// A shortcut GNOME already uses is the failure worth shouting about: both
+    /// actions fire, so the user gets dictation *and* whatever GNOME does with
+    /// that key, and nothing anywhere reports an error.
     pub fn show_shortcut(&self, accel: &str, registered: bool) {
-        if let Some(row) = self.imp().shortcut_row.borrow().as_ref() {
-            row.set_subtitle(&if registered {
-                format!(
-                    "{} — press to start, press again to stop",
-                    shortcut::human_label(accel)
-                )
-            } else {
-                format!(
-                    "{} — not registered with GNOME",
-                    shortcut::human_label(accel)
-                )
-            });
+        let Some(row) = self.imp().shortcut_row.borrow().clone() else {
+            return;
+        };
+        let key = shortcut::human_label(accel);
+
+        match shortcut::conflict(accel) {
+            Some(taken) => {
+                row.set_subtitle(&format!(
+                    "{key} — GNOME already uses this for “{taken}”. Both will happen."
+                ));
+                row.add_css_class("error");
+            }
+            None => {
+                row.remove_css_class("error");
+                row.set_subtitle(&if registered {
+                    format!("{key} — press to start, press again to stop")
+                } else {
+                    format!("{key} — not registered with GNOME")
+                });
+            }
         }
     }
 

@@ -5,7 +5,7 @@
 //! engine, the cleanup pass and the typist, and pushes results back out. It is
 //! the only thing that writes the config file.
 //!
-//! It is also the thing that stays running. Mynah is a shortcut first and a
+//! It is also the thing that stays running. Scribe is a shortcut first and a
 //! window second: `--toggle` on a second invocation is handed to the instance
 //! already running, which is what makes a global keybinding work at all.
 
@@ -47,7 +47,7 @@ fn is_modifier_key(key: gtk::gdk::Key) -> bool {
     )
 }
 
-/// What Mynah is doing right now.
+/// What Scribe is doing right now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Activity {
     Idle,
@@ -58,7 +58,7 @@ pub enum Activity {
 mod imp {
     use super::*;
 
-    pub struct MynahApplication {
+    pub struct ScribeApplication {
         pub store: RefCell<Store>,
         pub engine: RefCell<Option<Rc<engine::Engine>>>,
         pub typist: RefCell<Option<Rc<inject::Typist>>>,
@@ -67,7 +67,7 @@ mod imp {
         pub activity: Cell<Activity>,
         pub download: RefCell<Option<models::Download>>,
         /// Keeps the process alive with no window open. Dropping this guard
-        /// is what would let Mynah exit the moment the settings window is
+        /// is what would let Scribe exit the moment the settings window is
         /// closed, taking the shortcut with it.
         pub hold: RefCell<Option<gio::ApplicationHoldGuard>>,
         /// Streaming text accumulated across chunks.
@@ -76,7 +76,7 @@ mod imp {
         pub pending_audio: RefCell<Vec<f32>>,
     }
 
-    impl Default for MynahApplication {
+    impl Default for ScribeApplication {
         fn default() -> Self {
             Self {
                 store: RefCell::new(Store::detached()),
@@ -94,15 +94,15 @@ mod imp {
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for MynahApplication {
-        const NAME: &'static str = "MynahApplication";
-        type Type = super::MynahApplication;
+    impl ObjectSubclass for ScribeApplication {
+        const NAME: &'static str = "ScribeApplication";
+        type Type = super::ScribeApplication;
         type ParentType = adw::Application;
     }
 
-    impl ObjectImpl for MynahApplication {}
+    impl ObjectImpl for ScribeApplication {}
 
-    impl ApplicationImpl for MynahApplication {
+    impl ApplicationImpl for ScribeApplication {
         fn startup(&self) {
             self.parent_startup();
             let obj = self.obj();
@@ -116,7 +116,7 @@ mod imp {
             *self.engine.borrow_mut() = Some(Rc::new(engine::Engine::new()));
             *self.typist.borrow_mut() = Some(Rc::new(inject::Typist::new()));
 
-            // Mynah is useful with no window open, so the process is held up
+            // Scribe is useful with no window open, so the process is held up
             // by this rather than by a window.
             *self.hold.borrow_mut() = Some(obj.hold());
         }
@@ -148,35 +148,35 @@ mod imp {
             // user is quitting, not dictating.
             let _ = self.recorder.borrow_mut().take();
             if let Err(error) = self.store.borrow().save() {
-                eprintln!("mynah: {error}");
+                eprintln!("scribe: {error}");
             }
             self.parent_shutdown();
         }
     }
 
-    impl GtkApplicationImpl for MynahApplication {}
-    impl AdwApplicationImpl for MynahApplication {}
+    impl GtkApplicationImpl for ScribeApplication {}
+    impl AdwApplicationImpl for ScribeApplication {}
 }
 
 glib::wrapper! {
-    pub struct MynahApplication(ObjectSubclass<imp::MynahApplication>)
+    pub struct ScribeApplication(ObjectSubclass<imp::ScribeApplication>)
         @extends adw::Application, gtk::Application, gio::Application,
         @implements gio::ActionGroup, gio::ActionMap;
 }
 
-impl Default for MynahApplication {
+impl Default for ScribeApplication {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl MynahApplication {
+impl ScribeApplication {
     pub fn new() -> Self {
         Self::with_application_id(crate::APP_ID)
     }
 
     /// Tests use an id of their own: sharing the real one would register the
-    /// test process as a remote for a running Mynah and hand it the commands.
+    /// test process as a remote for a running Scribe and hand it the commands.
     pub fn with_application_id(application_id: &str) -> Self {
         let app: Self = glib::Object::builder()
             .property("application-id", application_id)
@@ -213,23 +213,23 @@ impl MynahApplication {
 
         if let LoadOutcome::Recovered(aside) = &outcome {
             eprintln!(
-                "mynah: the settings file could not be read and was kept at {}",
+                "scribe: the settings file could not be read and was kept at {}",
                 aside.display()
             );
         }
 
         // Re-assert the keybinding on every start: the command embeds this
-        // binary's path, which changes when Mynah is installed somewhere new.
+        // binary's path, which changes when Scribe is installed somewhere new.
         if shortcut::is_supported() {
             if let Err(error) = shortcut::install(&accel) {
-                eprintln!("mynah: {error}");
+                eprintln!("scribe: {error}");
             }
         }
     }
 
     fn save(&self) {
         if let Err(error) = self.imp().store.borrow().save() {
-            eprintln!("mynah: {error}");
+            eprintln!("scribe: {error}");
         }
     }
 
@@ -249,12 +249,12 @@ impl MynahApplication {
 
     fn show_about(&self) {
         let about = adw::AboutDialog::builder()
-            .application_name("Mynah")
+            .application_name("Scribe")
             .application_icon(crate::APP_ID)
             .developer_name("Matthew Hagrelius")
             .version(env!("CARGO_PKG_VERSION"))
-            .website("https://github.com/mhagrelius/mynah")
-            .issue_url("https://github.com/mhagrelius/mynah/issues")
+            .website("https://github.com/mhagrelius/scribe")
+            .issue_url("https://github.com/mhagrelius/scribe/issues")
             .license_type(gtk::License::Gpl30)
             .comments(
                 "Speak, and it types. Speech recognition runs on this machine; \
@@ -378,11 +378,11 @@ impl MynahApplication {
         let banner = if !shortcut::is_supported() {
             Some(
                 "This desktop does not provide GNOME's custom shortcuts. Bind a key to \
-                 “mynah --toggle” yourself."
+                 “scribe --toggle” yourself."
                     .to_string(),
             )
         } else if self.imp().store.borrow().is_read_only() {
-            Some("These settings were written by a newer Mynah and will not be saved over.".into())
+            Some("These settings were written by a newer Scribe and will not be saved over.".into())
         } else {
             None
         };
@@ -432,7 +432,16 @@ impl MynahApplication {
                     return glib::Propagation::Stop;
                 }
                 let accel = gtk::accelerator_name(key, modifiers);
-                preview.set_label(&gtk::accelerator_get_label(key, modifiers));
+                // Warn here rather than after saving: a key GNOME already
+                // holds will fire both actions, and nothing later in the
+                // chain reports that as an error.
+                match shortcut::conflict(&accel) {
+                    Some(taken) => preview.set_label(&format!(
+                        "{} — GNOME uses this for “{taken}”",
+                        gtk::accelerator_get_label(key, modifiers)
+                    )),
+                    None => preview.set_label(&gtk::accelerator_get_label(key, modifiers)),
+                }
                 *captured.borrow_mut() = accel.to_string();
                 glib::Propagation::Stop
             }
@@ -539,7 +548,7 @@ impl MynahApplication {
 
         if !engine::is_installed(config.mode) {
             self.report(&format!(
-                "{} Open Mynah to download it.",
+                "{} Open Scribe to download it.",
                 engine::EngineError::NotInstalled(config.mode)
             ));
             return;
@@ -707,7 +716,7 @@ impl MynahApplication {
                         Ok(polished) => app.finish(polished),
                         Err(error) => {
                             // The dictation is never lost to a cleanup failure.
-                            eprintln!("mynah: {error}");
+                            eprintln!("scribe: {error}");
                             app.finish(original.clone());
                         }
                     }
@@ -744,7 +753,9 @@ impl MynahApplication {
                 self,
                 move |outcome: inject::Delivered| {
                     if outcome == inject::Delivered::Copied {
-                        app.report("Mynah cannot type into other windows, so the text was copied.");
+                        app.report(
+                            "Scribe cannot type into other windows, so the text was copied.",
+                        );
                     }
                 }
             ),
@@ -753,7 +764,7 @@ impl MynahApplication {
 
     /// Say something to the user, wherever they can see it.
     ///
-    /// Dictation happens with no Mynah window in sight, so a toast in a window
+    /// Dictation happens with no Scribe window in sight, so a toast in a window
     /// nobody is looking at is not enough; a notification is what reaches
     /// somebody typing in a terminal.
     fn report(&self, message: &str) {
@@ -763,8 +774,8 @@ impl MynahApplication {
                 return;
             }
         }
-        let notification = gio::Notification::new("Mynah");
+        let notification = gio::Notification::new("Scribe");
         notification.set_body(Some(message));
-        self.send_notification(Some("mynah-status"), &notification);
+        self.send_notification(Some("scribe-status"), &notification);
     }
 }

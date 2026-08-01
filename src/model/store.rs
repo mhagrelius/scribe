@@ -1,6 +1,6 @@
 //! The config file on disk.
 //!
-//! One small JSON file under `$XDG_CONFIG_HOME/mynah/`. It is written the way
+//! One small JSON file under `$XDG_CONFIG_HOME/scribe/`. It is written the way
 //! the sibling apps write theirs — to a temporary file that is flushed and
 //! synced before being renamed over the real one — so a crash or a power cut
 //! during a save leaves either the old file or the new one, never half of
@@ -8,7 +8,7 @@
 //!
 //! A file this process cannot parse is moved aside rather than overwritten.
 //! The settings in it are typed by hand and are worth more to the user than
-//! they are to Mynah, so losing them silently is not an option.
+//! they are to Scribe, so losing them silently is not an option.
 
 use std::fmt;
 use std::fs;
@@ -63,7 +63,7 @@ pub enum LoadOutcome {
     Loaded,
     /// The file could not be parsed and was renamed to the given path.
     Recovered(PathBuf),
-    /// The file was written by a newer Mynah. Loaded as far as possible and
+    /// The file was written by a newer Scribe. Loaded as far as possible and
     /// held read-only, so a downgrade cannot quietly delete the new keys.
     TooNew {
         found: u32,
@@ -103,7 +103,7 @@ impl Store {
         self.path.as_deref()
     }
 
-    /// The file Mynah uses when nobody says otherwise.
+    /// The file Scribe uses when nobody says otherwise.
     pub fn default_path() -> PathBuf {
         let base = std::env::var_os("XDG_CONFIG_HOME")
             .map(PathBuf::from)
@@ -111,7 +111,7 @@ impl Store {
             .unwrap_or_else(|| {
                 PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config")
             });
-        base.join("mynah").join("config.json")
+        base.join("scribe").join("config.json")
     }
 
     pub fn open(path: impl Into<PathBuf>) -> (Self, LoadOutcome) {

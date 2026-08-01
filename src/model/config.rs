@@ -43,7 +43,7 @@ pub enum Delivery {
     #[default]
     Type,
     /// Put the transcript on the clipboard and say so. Needs no permission at
-    /// all, and is what Mynah falls back to when consent is refused.
+    /// all, and is what Scribe falls back to when consent is refused.
     Clipboard,
 }
 
@@ -79,7 +79,7 @@ pub struct Config {
 
     /// PipeWire target for `pw-record`. Empty means the system default, which
     /// is what almost everyone wants and what follows the user's choice in
-    /// Settings without Mynah having to track it.
+    /// Settings without Scribe having to track it.
     pub source: String,
 
     pub vocabulary: Vocabulary,
@@ -90,7 +90,7 @@ impl Default for Config {
         Self {
             mode: Mode::Batch,
             delivery: Delivery::Type,
-            shortcut: "<Control><Alt>d".to_string(),
+            shortcut: "<Super><Alt>d".to_string(),
             spell_numbers: true,
             cleanup: false,
             endpoint: default_endpoint(),

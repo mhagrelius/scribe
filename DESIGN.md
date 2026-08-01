@@ -1,4 +1,4 @@
-# Mynah — design
+# Scribe — design
 
 ## Scope
 
@@ -12,7 +12,7 @@ cloud fallback, anything that sends audio off the machine.
 
 ## What it does
 
-1. The user presses the shortcut. GNOME runs `mynah --toggle`, which is handed
+1. The user presses the shortcut. GNOME runs `scribe --toggle`, which is handed
    to the already-running instance.
 2. `pw-record` starts and a small overlay appears with a level meter.
 3. The user presses the shortcut again.
@@ -33,7 +33,7 @@ tested directly.
 `ui/` is the boundaries — windows, microphone, speech models, portals, HTTP —
 driven from the GLib main loop.
 
-`MynahApplication` owns the `Store` and is the only thing that writes it.
+`ScribeApplication` owns the `Store` and is the only thing that writes it.
 Widgets emit intent (`settings-changed`, `download-requested`) and are pushed
 state back by method call.
 
@@ -91,7 +91,7 @@ app id is required`. Since portal 1.21 an application identity is mandatory,
 and the mechanism a non-Flatpak app uses to declare one,
 `org.freedesktop.host.portal.Registry`, is not exported by this portal build —
 the bus name is not owned by anything. Launching under a systemd scope named
-`app-us.hagreli.Mynah-N.scope` was tested too, in three naming variants, and
+`app-us.hagreli.Scribe-N.scope` was tested too, in three naming variants, and
 changes nothing.
 
 So the shortcut is a gnome-settings-daemon custom keybinding, which is
@@ -101,7 +101,7 @@ which hands a keylogger to every process they run. Not worth one key.
 
 **The clipboard does not go through GDK.** It did, and it silently failed:
 taking the Wayland clipboard needs a serial from a recent input event on one of
-our own surfaces, and Mynah by design has no focused window when a dictation
+our own surfaces, and Scribe by design has no focused window when a dictation
 ends. `wl-copy` uses the data-control protocol, which does not need focus. GDK
 is kept only as a fallback for when `wl-copy` is absent.
 
@@ -118,12 +118,23 @@ in a fifth of a second. Installing a toolchain to make an already-imperceptible
 wait shorter is not a trade worth making. The `cuda` feature is one line in
 `Cargo.toml` if that ever changes.
 
+**The shipped shortcut collided with GNOME's own, and nothing said so.**
+`<Control><Alt>d` was the default until it turned out to be Show Desktop:
+pressing it dictated *and* minimised every window. gnome-settings-daemon
+accepts a binding another schema already holds without an error or a warning,
+and GNOME writes the same key as `<Primary><Alt>d`, so a string comparison
+finds nothing. `shortcut::conflict` now parses both sides and searches the five
+schemas GNOME keeps its own bindings in, and the settings row and the capture
+dialog both say which action a key is already taken by.
+
 **No Meson.** Cargo plus `install.sh`, as in the sibling apps.
 
 ## Settled
 
-- Application id `us.hagreli.Mynah`, binary `mynah`
-- Config at `$XDG_CONFIG_HOME/mynah/config.json`; models under
-  `$XDG_DATA_HOME/mynah/models`
-- Ctrl+Alt+D by default
+- Application id `us.hagreli.Scribe`, binary `scribe`
+- Config at `$XDG_CONFIG_HOME/scribe/config.json`; models under
+  `$XDG_DATA_HOME/scribe/models`
+- Super+Alt+D by default. Not Ctrl+Alt+D: that is GNOME's Show Desktop,
+  spelled `<Primary><Alt>d`, and binding it registers cleanly while quietly
+  firing both actions.
 - Models are downloaded on request, never bundled

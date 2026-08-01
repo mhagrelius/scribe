@@ -4,12 +4,12 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 PREFIX="${PREFIX:-$HOME/.local}"
-APP_ID="us.hagreli.Mynah"
+APP_ID="us.hagreli.Scribe"
 
 # Take the keyboard shortcut back out of GNOME before the binary goes, so the
 # key stops being bound to a command that no longer exists.
 if command -v gsettings >/dev/null; then
-  KEY=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mynah/
+  KEY=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/scribe/
   CURRENT=$(gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings 2>/dev/null || echo "[]")
   if [[ "$CURRENT" == *"$KEY"* ]]; then
     UPDATED=$(python3 - "$CURRENT" "$KEY" <<'PY'
@@ -22,7 +22,7 @@ PY
   fi
 fi
 
-rm -f "$PREFIX/bin/mynah" \
+rm -f "$PREFIX/bin/scribe" \
       "$PREFIX/share/applications/$APP_ID.desktop" \
       "$PREFIX/share/metainfo/$APP_ID.metainfo.xml" \
       "$PREFIX/share/icons/hicolor/scalable/apps/$APP_ID.svg" \
@@ -38,5 +38,5 @@ Removed.
 Your settings and the downloaded speech models were left where they are.
 To delete those too:
 
-  rm -r ~/.config/mynah ~/.local/share/mynah
+  rm -r ~/.config/scribe ~/.local/share/scribe
 EOF

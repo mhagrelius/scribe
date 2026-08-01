@@ -8,7 +8,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP_ID=us.hagreli.Mynah
+APP_ID=us.hagreli.Scribe
 VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 ARCH=$(dpkg --print-architecture)
 STAGE="$(mktemp -d)"
@@ -18,22 +18,22 @@ for tool in dpkg-deb dpkg-shlibdeps fakeroot; do
     command -v "$tool" >/dev/null || { echo "missing: $tool" >&2; exit 1; }
 done
 
-echo "==> Building mynah $VERSION for $ARCH"
+echo "==> Building scribe $VERSION for $ARCH"
 cargo build --release --locked
 
-install -Dm755 target/release/mynah "$STAGE/usr/bin/mynah"
+install -Dm755 target/release/scribe "$STAGE/usr/bin/scribe"
 install -Dm644 "data/$APP_ID.desktop" "$STAGE/usr/share/applications/$APP_ID.desktop"
 install -Dm644 "data/$APP_ID.metainfo.xml" "$STAGE/usr/share/metainfo/$APP_ID.metainfo.xml"
 install -Dm644 "data/icons/hicolor/scalable/apps/$APP_ID.svg" \
     "$STAGE/usr/share/icons/hicolor/scalable/apps/$APP_ID.svg"
 install -Dm644 "data/icons/hicolor/symbolic/apps/$APP_ID-symbolic.svg" \
     "$STAGE/usr/share/icons/hicolor/symbolic/apps/$APP_ID-symbolic.svg"
-install -Dm644 packaging/deb/copyright "$STAGE/usr/share/doc/mynah/copyright"
+install -Dm644 packaging/deb/copyright "$STAGE/usr/share/doc/scribe/copyright"
 
 install -Dm644 /dev/stdin "$STAGE/usr/share/dbus-1/services/$APP_ID.service" <<EOF
 [D-BUS Service]
 Name=$APP_ID
-Exec=/usr/bin/mynah --gapplication-service
+Exec=/usr/bin/scribe --gapplication-service
 EOF
 
 # Let dpkg work out the library dependencies from the binary itself, rather
@@ -45,15 +45,15 @@ EOF
 # package ends up claiming to need GTK 4.16 long after it needs 4.22.
 mkdir -p "$STAGE/DEBIAN" "$STAGE/debian"
 cat > "$STAGE/debian/control" <<EOF
-Source: mynah
+Source: scribe
 
-Package: mynah
+Package: scribe
 Architecture: $ARCH
 EOF
 
 DEPENDS=$(
     cd "$STAGE" &&
-    dpkg-shlibdeps -O --ignore-missing-info usr/bin/mynah 2>/dev/null |
+    dpkg-shlibdeps -O --ignore-missing-info usr/bin/scribe 2>/dev/null |
     sed -n 's/^shlibs:Depends=//p'
 )
 rm -rf "$STAGE/debian"
@@ -69,7 +69,7 @@ install -m755 packaging/deb/postinst "$STAGE/DEBIAN/postinst"
 install -m755 packaging/deb/postrm "$STAGE/DEBIAN/postrm"
 
 mkdir -p dist
-OUT="dist/mynah_${VERSION}_${ARCH}.deb"
+OUT="dist/scribe_${VERSION}_${ARCH}.deb"
 fakeroot dpkg-deb --build "$STAGE" "$OUT" >/dev/null
 
 echo "==> $OUT"

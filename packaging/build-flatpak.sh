@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-MANIFEST=packaging/flatpak/us.hagreli.Mynah.yml
+MANIFEST=packaging/flatpak/us.hagreli.Scribe.yml
 SOURCES=packaging/flatpak/cargo-sources.json
 GENERATOR=.flatpak-build/flatpak-cargo-generator.py
 RUNTIME_VERSION=50
@@ -42,4 +42,4 @@ flatpak-builder --force-clean --user --install \
     .flatpak-build/build "$MANIFEST"
 
 echo
-echo "Installed. Run: flatpak run us.hagreli.Mynah"
+echo "Installed. Run: flatpak run us.hagreli.Scribe"

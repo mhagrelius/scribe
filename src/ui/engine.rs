@@ -27,7 +27,7 @@ use crate::model::Mode;
 
 /// Where model files live once fetched.
 pub fn models_dir() -> std::path::PathBuf {
-    glib::user_data_dir().join("mynah").join("models")
+    glib::user_data_dir().join("scribe").join("models")
 }
 
 pub fn batch_dir() -> std::path::PathBuf {
@@ -125,7 +125,7 @@ impl Engine {
     pub fn new() -> Self {
         let (jobs, inbox) = mpsc::channel();
         std::thread::Builder::new()
-            .name("mynah-speech".into())
+            .name("scribe-speech".into())
             .spawn(move || worker(inbox))
             .expect("the speech worker thread could not be started");
         Self {

@@ -1,5 +1,5 @@
 [package]
-name = "mynah"
+name = "scribe"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"
@@ -9,11 +9,11 @@ license = "GPL-3.0-or-later"
 # A library as well as a binary, so integration tests and `examples/` can drive
 # the real application rather than a copy of it.
 [[bin]]
-name = "mynah"
+name = "scribe"
 path = "src/main.rs"
 
 [lib]
-name = "mynah"
+name = "scribe"
 path = "src/lib.rs"
 
 [dependencies]
