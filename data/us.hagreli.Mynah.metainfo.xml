@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>us.hagreli.Mynah</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Mynah</name>
+  <summary>Speak, and it types</summary>
+  <description>
+    <p>
+      Mynah is dictation for the GNOME desktop. Press a shortcut, say what you
+      mean, press it again, and the words appear in whatever window you were
+      already working in — a terminal, a browser, an editor. Speech recognition
+      runs on this machine, so nothing you dictate leaves it.
+    </p>
+    <ul>
+      <li>A global shortcut that works in any application</li>
+      <li>Accurate transcription with NVIDIA's Parakeet, or live text as you speak with Nemotron</li>
+      <li>A vocabulary of your own, for names and jargon the model keeps mishearing</li>
+      <li>Spoken numbers written as digits</li>
+      <li>An optional tidying pass through a local language model, to drop the "um"s</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">us.hagreli.Mynah.desktop</launchable>
+  <categories>
+    <category>Utility</category>
+    <category>Accessibility</category>
+  </categories>
+  <keywords>
+    <keyword>dictation</keyword>
+    <keyword>speech</keyword>
+    <keyword>voice</keyword>
+    <keyword>transcribe</keyword>
+  </keywords>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+    <control>touch</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-08-01">
+      <description>
+        <p>First release.</p>
+      </description>
+    </release>
+  </releases>
+  <developer id="us.hagreli">
+    <name>Matthew Hagrelius</name>
+  </developer>
+  <url type="homepage">https://github.com/hagrelius/mynah</url>
+  <url type="bugtracker">https://github.com/hagrelius/mynah/issues</url>
+</component>

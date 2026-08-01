@@ -1,0 +1,19 @@
+[Desktop Entry]
+Name=Mynah
+GenericName=Dictation
+Comment=Speak, and it types
+Keywords=dictation;speech;voice;transcribe;stt;microphone;
+Exec=mynah
+Icon=us.hagreli.Mynah
+Terminal=false
+Type=Application
+Categories=GTK;GNOME;Utility;Accessibility;
+StartupNotify=true
+# Matches the application ID so the shell pairs the window with this entry.
+StartupWMClass=us.hagreli.Mynah
+DBusActivatable=true
+Actions=toggle;
+
+[Desktop Action toggle]
+Name=Start Dictating
+Exec=mynah --toggle

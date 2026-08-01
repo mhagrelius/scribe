@@ -1,0 +1,374 @@
+//! Getting the transcript into somebody else's window.
+//!
+//! Wayland gives a client no way to type into a window it does not own, which
+//! is the entire difficulty of a dictation app on this desktop. The three
+//! usual answers are `wtype`, which needs a virtual-keyboard protocol Mutter
+//! has said it will not implement; `ydotool`, which needs a uinput device, a
+//! udev rule, a group change and a daemon; and the RemoteDesktop portal, which
+//! needs one consent dialog and nothing else. Mynah uses the portal.
+//!
+//! The session is created once and kept. `persist_mode` 2 asks the portal to
+//! remember the grant until the user revokes it, and `Start` hands back a
+//! `restore_token` that skips the dialog next time. The token is single-use:
+//! each successful start returns a fresh one, so it is rewritten every time.
+//!
+//! When consent is refused the transcript still goes to the clipboard, which
+//! needs no permission at all and is the floor this app will not drop below.
+
+use gio::prelude::*;
+use gtk::glib;
+use gtk::prelude::*;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
+use super::portal;
+
+const INTERFACE: &str = "org.freedesktop.portal.RemoteDesktop";
+
+/// Keyboard device type, as the portal's `SelectDevices` numbers them.
+const KEYBOARD: u32 = 1;
+/// Persist until the user explicitly revokes the grant.
+const PERSIST_UNTIL_REVOKED: u32 = 2;
+
+/// What became of an attempt to deliver a transcript.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Delivered {
+    /// Typed into the focused window.
+    Typed,
+    /// Put on the clipboard, because that is what the user asked for or the
+    /// only thing left after consent was refused.
+    Copied,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum State {
+    Idle,
+    Starting,
+    Ready,
+    /// Consent was refused. Not retried for the rest of the run: asking again
+    /// on every utterance would be its own kind of broken.
+    Refused,
+}
+
+/// Owns the portal session and hands out keystrokes.
+pub struct Typist {
+    connection: Option<gio::DBusConnection>,
+    session: RefCell<Option<String>>,
+    state: Cell<State>,
+    /// Work waiting for the session to finish starting.
+    pending: RefCell<Vec<String>>,
+}
+
+impl Default for Typist {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Typist {
+    pub fn new() -> Self {
+        Self {
+            connection: gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE).ok(),
+            session: RefCell::new(None),
+            state: Cell::new(State::Idle),
+            pending: RefCell::new(Vec::new()),
+        }
+    }
+
+    /// Whether typing is still worth attempting.
+    pub fn is_available(&self) -> bool {
+        self.connection.is_some() && self.state.get() != State::Refused
+    }
+
+    fn token_path() -> std::path::PathBuf {
+        glib::user_data_dir()
+            .join("mynah")
+            .join("remote-desktop.token")
+    }
+
+    fn saved_token() -> Option<String> {
+        let text = std::fs::read_to_string(Self::token_path()).ok()?;
+        let trimmed = text.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    }
+
+    fn save_token(token: &str) {
+        let path = Self::token_path();
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(path, token);
+    }
+
+    /// Deliver `text`, calling `done` with what actually happened.
+    ///
+    /// If the session is not up yet this starts it and queues the text, so the
+    /// first dictation of a session is not lost to the consent dialog.
+    pub fn deliver(self: &Rc<Self>, text: &str, done: impl Fn(Delivered) + 'static) {
+        if text.is_empty() {
+            done(Delivered::Typed);
+            return;
+        }
+        let Some(connection) = self.connection.clone() else {
+            copy_to_clipboard(text);
+            done(Delivered::Copied);
+            return;
+        };
+
+        match self.state.get() {
+            State::Ready => {
+                let session = self.session.borrow().clone();
+                match session {
+                    Some(session) => {
+                        type_text(&connection, &session, text);
+                        done(Delivered::Typed);
+                    }
+                    None => {
+                        copy_to_clipboard(text);
+                        done(Delivered::Copied);
+                    }
+                }
+            }
+            State::Refused => {
+                copy_to_clipboard(text);
+                done(Delivered::Copied);
+            }
+            State::Starting => {
+                self.pending.borrow_mut().push(text.to_string());
+                done(Delivered::Typed);
+            }
+            State::Idle => {
+                self.pending.borrow_mut().push(text.to_string());
+                self.start(connection);
+                done(Delivered::Typed);
+            }
+        }
+    }
+
+    /// Bring the portal session up, asking for consent if there is no token.
+    pub fn start(self: &Rc<Self>, connection: gio::DBusConnection) {
+        if self.state.get() != State::Idle {
+            return;
+        }
+        self.state.set(State::Starting);
+
+        let this = self.clone();
+        portal::request(
+            &connection.clone(),
+            INTERFACE,
+            "CreateSession",
+            |handle_token| portal::tup(vec![portal::session_options(handle_token, "mynahrd")]),
+            move |code, results| {
+                if code != portal::SUCCESS {
+                    this.give_up();
+                    return;
+                }
+                let Some(session) = portal::handle(&results, "session_handle") else {
+                    this.give_up();
+                    return;
+                };
+                *this.session.borrow_mut() = Some(session.clone());
+                this.select_devices(connection.clone(), session);
+            },
+        );
+    }
+
+    fn select_devices(self: &Rc<Self>, connection: gio::DBusConnection, session: String) {
+        let this = self.clone();
+        let for_start = session.clone();
+        portal::request(
+            &connection.clone(),
+            INTERFACE,
+            "SelectDevices",
+            move |handle_token| {
+                let mut options = vec![
+                    ("handle_token", handle_token.to_variant()),
+                    ("types", KEYBOARD.to_variant()),
+                    ("persist_mode", PERSIST_UNTIL_REVOKED.to_variant()),
+                ];
+                let saved = Self::saved_token();
+                if let Some(token) = saved.as_deref() {
+                    options.push(("restore_token", token.to_variant()));
+                }
+                portal::tup(vec![portal::opath(&session), portal::vdict(options)])
+            },
+            move |code, _| {
+                if code != portal::SUCCESS {
+                    this.give_up();
+                    return;
+                }
+                this.start_session(connection.clone(), for_start.clone());
+            },
+        );
+    }
+
+    fn start_session(self: &Rc<Self>, connection: gio::DBusConnection, session: String) {
+        let this = self.clone();
+        let for_flush = session.clone();
+        portal::request(
+            &connection.clone(),
+            INTERFACE,
+            "Start",
+            move |handle_token| {
+                portal::tup(vec![
+                    portal::opath(&session),
+                    "".to_variant(),
+                    portal::vdict(vec![("handle_token", handle_token.to_variant())]),
+                ])
+            },
+            move |code, results| {
+                if code != portal::SUCCESS {
+                    this.give_up();
+                    return;
+                }
+                if let Some(token) = portal::get::<String>(&results, "restore_token") {
+                    Self::save_token(&token);
+                }
+                this.state.set(State::Ready);
+
+                // The compositor drops input sent immediately after Start, so
+                // the first character of the first dictation goes missing
+                // without this pause.
+                let this = this.clone();
+                let connection = connection.clone();
+                let session = for_flush.clone();
+                glib::timeout_add_local_once(std::time::Duration::from_millis(120), move || {
+                    for text in this.pending.borrow_mut().drain(..) {
+                        type_text(&connection, &session, &text);
+                    }
+                });
+            },
+        );
+    }
+
+    /// Consent was refused or the session died. Fall back to the clipboard for
+    /// anything queued, and stop asking.
+    fn give_up(&self) {
+        self.state.set(State::Refused);
+        *self.session.borrow_mut() = None;
+        let queued: Vec<String> = self.pending.borrow_mut().drain(..).collect();
+        if let Some(text) = queued.last() {
+            copy_to_clipboard(text);
+        }
+    }
+}
+
+/// The keysym for a character.
+///
+/// Latin-1 maps onto keysyms one for one; everything above it uses the Unicode
+/// range the X11 keysym registry set aside for exactly this. Going through
+/// keysyms rather than keycodes is what makes this layout-independent: the
+/// compositor resolves the symbol against whatever layout is active, so an
+/// accented character does not arrive stripped the way `ydotool` delivers it.
+pub fn keysym_for(ch: char) -> u32 {
+    match ch {
+        '\n' => 0xff0d, // Return
+        '\r' => 0xff0d,
+        '\t' => 0xff09, // Tab
+        '\u{8}' => 0xff08,
+        c if (c as u32) < 0x100 => c as u32,
+        c => 0x0100_0000 + c as u32,
+    }
+}
+
+fn type_text(connection: &gio::DBusConnection, session: &str, text: &str) {
+    for ch in text.chars() {
+        let keysym = keysym_for(ch) as i32;
+        for state in [1u32, 0u32] {
+            let result = connection.call_sync(
+                Some(portal::NAME),
+                portal::PATH,
+                INTERFACE,
+                "NotifyKeyboardKeysym",
+                Some(&portal::tup(vec![
+                    portal::opath(session),
+                    portal::vdict(vec![]),
+                    keysym.to_variant(),
+                    state.to_variant(),
+                ])),
+                None,
+                gio::DBusCallFlags::NONE,
+                -1,
+                gio::Cancellable::NONE,
+            );
+            if let Err(error) = result {
+                eprintln!("mynah: could not type into the focused window: {error}");
+                copy_to_clipboard(text);
+                return;
+            }
+        }
+    }
+}
+
+/// Put text on the clipboard.
+///
+/// `wl-copy` first, and not as a fallback. Taking the Wayland clipboard
+/// through GDK needs a serial from a recent input event on one of our own
+/// surfaces, and Mynah by design has no focused window when a dictation ends —
+/// the user is typing in something else. The call succeeds and the clipboard
+/// does not change. `wl-copy` goes through the data-control protocol, which
+/// exists for exactly this case and does not need focus.
+///
+/// GDK is still tried when `wl-copy` is missing, because on X11 and in a
+/// window that does happen to be focused it works.
+pub fn copy_to_clipboard(text: &str) {
+    if glib::find_program_in_path("wl-copy").is_some() {
+        let spawned = gio::Subprocess::newv(
+            &[std::ffi::OsStr::new("wl-copy"), std::ffi::OsStr::new("--")],
+            gio::SubprocessFlags::STDIN_PIPE | gio::SubprocessFlags::STDERR_SILENCE,
+        );
+        match spawned {
+            Ok(process) => {
+                // wl-copy holds the selection until it is replaced, so it
+                // deliberately outlives this call.
+                process.communicate_utf8_async(
+                    Some(text.to_string()),
+                    gio::Cancellable::NONE,
+                    |result| {
+                        if let Err(error) = result {
+                            eprintln!("mynah: wl-copy failed: {error}");
+                        }
+                    },
+                );
+                return;
+            }
+            Err(error) => eprintln!("mynah: wl-copy could not be started: {error}"),
+        }
+    }
+    if let Some(display) = gtk::gdk::Display::default() {
+        display.clipboard().set_text(text);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::keysym_for;
+
+    #[test]
+    fn ascii_maps_to_itself() {
+        assert_eq!(keysym_for('h'), 0x68);
+        assert_eq!(keysym_for(' '), 0x20);
+        assert_eq!(keysym_for('~'), 0x7e);
+    }
+
+    #[test]
+    fn latin_one_is_still_direct() {
+        assert_eq!(keysym_for('é'), 0xe9);
+        assert_eq!(keysym_for('ÿ'), 0xff);
+    }
+
+    #[test]
+    fn beyond_latin_one_uses_the_unicode_range() {
+        // The boundary is the whole subtlety here: 0x100 is the first
+        // character that has to be offset rather than sent as itself.
+        assert_eq!(keysym_for('Ā'), 0x0100_0100);
+        assert_eq!(keysym_for('€'), 0x0100_20ac);
+        assert_eq!(keysym_for('😀'), 0x0101_f600);
+    }
+
+    #[test]
+    fn newline_is_return_not_a_literal() {
+        assert_eq!(keysym_for('\n'), 0xff0d);
+        assert_eq!(keysym_for('\t'), 0xff09);
+    }
+}

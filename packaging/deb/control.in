@@ -1,0 +1,19 @@
+Package: mynah
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: @ARCH@
+Depends: @DEPENDS@
+Recommends: pipewire-bin, wl-clipboard
+Maintainer: Matthew Hagrelius <matthew@hagreli.us>
+Homepage: https://github.com/hagrelius/mynah
+Description: Dictation for the GNOME desktop
+ Mynah puts a global shortcut on your keyboard: press it, say what you
+ mean, press it again, and the words appear in whatever window you were
+ already working in.
+ .
+ Speech recognition runs on your own machine using NVIDIA's Parakeet
+ models, so nothing you dictate leaves it. A vocabulary you control
+ fixes the names and jargon the model mishears, spoken numbers are
+ written as digits, and an optional pass through a local language model
+ takes out the "um"s.

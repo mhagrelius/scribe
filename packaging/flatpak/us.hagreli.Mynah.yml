@@ -1,0 +1,75 @@
+# Flatpak manifest for Mynah.
+#
+# Build:  packaging/build-flatpak.sh
+
+id: us.hagreli.Mynah
+
+# GNOME 50 is the first runtime carrying libadwaita 1.9 and GTK 4.22, which
+# this is compiled against.
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+
+command: mynah
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+
+  # The microphone, via pw-record.
+  - --socket=pulseaudio
+
+  # Typing the transcript into the focused window. This is the permission the
+  # whole app turns on, and the portal asks the user before granting it.
+  - --talk-name=org.freedesktop.portal.RemoteDesktop
+
+  # Telling the user something went wrong when no window is open.
+  - --talk-name=org.freedesktop.Notifications
+
+  # Registering the keyboard shortcut with gnome-settings-daemon. A sandboxed
+  # Mynah cannot write another app's dconf keys without this, and without the
+  # shortcut there is no way to start dictating.
+  - --system-talk-name=org.freedesktop.login1
+  - --talk-name=ca.desrt.dconf
+  - --env=DCONF_USER_CONFIG_DIR=.config/dconf
+
+  # Downloading the speech models on first run, and the cleanup pass talking to
+  # a llama-server on the loopback address. Nothing here uploads audio.
+  - --share=network
+
+  # Deliberately absent:
+  #   --filesystem=*    settings and models live in the app's own XDG dirs
+  #   --device=all      no camera, no raw input devices; the shortcut comes
+  #                     from GNOME and the microphone from the audio socket
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/mynah/cargo
+
+modules:
+  - name: mynah
+    buildsystem: simple
+    build-commands:
+      - cargo --offline fetch --manifest-path Cargo.toml --verbose
+      - cargo --offline build --release --locked
+      - install -Dm755 target/release/mynah /app/bin/mynah
+      - install -Dm644 data/us.hagreli.Mynah.desktop
+          /app/share/applications/us.hagreli.Mynah.desktop
+      - install -Dm644 data/us.hagreli.Mynah.metainfo.xml
+          /app/share/metainfo/us.hagreli.Mynah.metainfo.xml
+      - install -Dm644 data/icons/hicolor/scalable/apps/us.hagreli.Mynah.svg
+          /app/share/icons/hicolor/scalable/apps/us.hagreli.Mynah.svg
+      - install -Dm644 data/icons/hicolor/symbolic/apps/us.hagreli.Mynah-symbolic.svg
+          /app/share/icons/hicolor/symbolic/apps/us.hagreli.Mynah-symbolic.svg
+    sources:
+      - type: dir
+        path: ../..
+      # Generated from Cargo.lock by build-flatpak.sh. Flathub builds with the
+      # network off, so every crate has to arrive here with a checksum.
+      - cargo-sources.json

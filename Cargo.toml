@@ -1,0 +1,42 @@
+[package]
+name = "mynah"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+description = "Dictation for the GNOME desktop"
+license = "GPL-3.0-or-later"
+
+# A library as well as a binary, so integration tests and `examples/` can drive
+# the real application rather than a copy of it.
+[[bin]]
+name = "mynah"
+path = "src/main.rs"
+
+[lib]
+name = "mynah"
+path = "src/lib.rs"
+
+[dependencies]
+gtk = { package = "gtk4", version = "0.11", features = ["v4_22"] }
+adw = { package = "libadwaita", version = "0.9", features = ["v1_9"] }
+# Only here to raise the GLib API feature level above what gtk4 pulls in; the
+# D-Bus and subprocess calls below need 2.80. Leave it.
+gio = { version = "0.22", features = ["v2_80"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Speech recognition. Wraps ONNX Runtime around NVIDIA's Parakeet and Nemotron
+# models: one crate covers both the accurate batch pass and the cache-aware
+# streaming pass, so there is one runtime to build and one model format to ship.
+# `ort` is still a release candidate and has broken API between rc's, so the
+# version is pinned through this crate rather than depended on directly.
+parakeet-rs = "0.3.7"
+
+# HTTP to the local llama-server for the cleanup pass. Chosen over reqwest
+# because it ships in org.gnome.Sdk, so the Flatpak needs no extra module, and
+# because it drives its I/O from the GLib main loop we already run.
+soup = { package = "soup3", version = "0.9" }
+
+[dev-dependencies]
+adw = { package = "libadwaita", version = "0.9", features = ["v1_9"] }
+tempfile = "3"

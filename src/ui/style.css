@@ -1,0 +1,16 @@
+/* Mynah keeps to the platform's own styling almost entirely. What is here is
+   the recording overlay, which is not a shape libadwaita already has a name
+   for: a small window that appears over somebody else's work and has to read
+   as transient rather than as an application window. */
+
+.mynah-overlay {
+  border-radius: 18px;
+}
+
+/* The meter is drawn against the label colour so it follows light and dark
+   without a second stylesheet, but it should sit back from the text rather
+   than compete with it. */
+.mynah-meter {
+  opacity: 0.9;
+  margin-top: 2px;
+}
