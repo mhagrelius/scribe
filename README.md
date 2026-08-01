@@ -22,7 +22,8 @@ leaves it.
 - A global shortcut that works in every application, GNOME's own way — no
   `ydotool`, no udev rules, no group changes
 - **Accurate** mode transcribes when you stop talking; **Live** mode shows the
-  words as you say them
+  words as you say them — and Accurate shows them too, as a preview, while
+  still delivering the accurate transcript at the end
 - A vocabulary of your own, for the names and jargon the model keeps mishearing
 - Spoken numbers written as digits — "twenty twenty six" becomes `2026`
 - An optional tidying pass through a local language model, to drop the "um"s
@@ -52,6 +53,11 @@ The tidying pass wants an OpenAI-shaped endpoint on `127.0.0.1:8080` — a
 
 **Super+Alt+D** starts and stops dictation. Change it in the window; Scribe
 registers it with GNOME so it keeps working after a reboot.
+
+The recording window fills with words as you talk. In Accurate mode that text
+is only a preview — it comes from the streaming model, and the text actually
+delivered is the accurate one, with better punctuation. Turn it off in settings
+if you would rather not have a second model resident.
 
 The first time Scribe types into another window, GNOME asks whether to allow it.
 That is the RemoteDesktop portal, and saying yes once is the whole of the

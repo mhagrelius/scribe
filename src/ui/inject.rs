@@ -50,13 +50,21 @@ enum State {
     Refused,
 }
 
+/// A transcript waiting on the portal, and the caller waiting to be told.
+struct Queued {
+    text: String,
+    done: Box<dyn Fn(Delivered)>,
+}
+
 /// Owns the portal session and hands out keystrokes.
 pub struct Typist {
     connection: Option<gio::DBusConnection>,
     session: RefCell<Option<String>>,
     state: Cell<State>,
     /// Work waiting for the session to finish starting.
-    pending: RefCell<Vec<String>>,
+    pending: RefCell<Vec<Queued>>,
+    /// Called when GNOME is about to ask the user for permission.
+    on_prompt: RefCell<Option<Box<dyn Fn()>>>,
 }
 
 impl Default for Typist {
@@ -72,12 +80,49 @@ impl Typist {
             session: RefCell::new(None),
             state: Cell::new(State::Idle),
             pending: RefCell::new(Vec::new()),
+            on_prompt: RefCell::new(None),
         }
     }
 
     /// Whether typing is still worth attempting.
     pub fn is_available(&self) -> bool {
         self.connection.is_some() && self.state.get() != State::Refused
+    }
+
+    /// Whether permission has actually been granted, rather than merely not
+    /// refused yet.
+    pub fn is_ready(&self) -> bool {
+        self.state.get() == State::Ready
+    }
+
+    /// Whether the user has turned Scribe down this run.
+    pub fn was_refused(&self) -> bool {
+        self.state.get() == State::Refused
+    }
+
+    /// Say what to do when the consent dialog is about to appear.
+    ///
+    /// A dialog that arrives unannounced while the user is looking at another
+    /// window reads as noise and gets dismissed, which is exactly what
+    /// happened the first time this shipped.
+    pub fn set_on_prompt(&self, notify: impl Fn() + 'static) {
+        *self.on_prompt.borrow_mut() = Some(Box::new(notify));
+    }
+
+    /// Let a refusal be reconsidered, so the settings window can offer a way
+    /// back without restarting Scribe.
+    pub fn allow_retry(&self) {
+        if self.state.get() == State::Refused {
+            self.state.set(State::Idle);
+        }
+    }
+
+    /// Ask for permission now, rather than in the middle of a dictation.
+    pub fn request_permission(self: &Rc<Self>) {
+        self.allow_retry();
+        if let Some(connection) = self.connection.clone() {
+            self.start(connection);
+        }
     }
 
     fn token_path() -> std::path::PathBuf {
@@ -133,16 +178,30 @@ impl Typist {
                 copy_to_clipboard(text);
                 done(Delivered::Copied);
             }
-            State::Starting => {
-                self.pending.borrow_mut().push(text.to_string());
-                done(Delivered::Typed);
-            }
+            // Nothing is reported yet. Whether this ends up typed or copied is
+            // not known until the user has answered the portal, and claiming
+            // "typed" here is precisely how a refusal became silent: the text
+            // went to the clipboard and nobody was told.
+            State::Starting => self.queue(text, done),
             State::Idle => {
-                self.pending.borrow_mut().push(text.to_string());
+                self.queue(text, done);
                 self.start(connection);
-                done(Delivered::Typed);
             }
         }
+    }
+
+    fn queue(&self, text: &str, done: impl Fn(Delivered) + 'static) {
+        self.pending.borrow_mut().push(Queued {
+            text: text.to_string(),
+            done: Box::new(done),
+        });
+    }
+
+    /// Take everything waiting. The borrow is released before any callback
+    /// runs, because a callback may start the next dictation and come back
+    /// through `deliver`.
+    fn take_pending(&self) -> Vec<Queued> {
+        self.pending.borrow_mut().drain(..).collect()
     }
 
     /// Bring the portal session up, asking for consent if there is no token.
@@ -151,6 +210,14 @@ impl Typist {
             return;
         }
         self.state.set(State::Starting);
+
+        // Only the very first attempt puts a dialog on screen; a saved token
+        // makes the rest silent, so there is nothing to announce then.
+        if Self::saved_token().is_none() {
+            if let Some(notify) = self.on_prompt.borrow().as_ref() {
+                notify();
+            }
+        }
 
         let this = self.clone();
         portal::request(
@@ -233,22 +300,23 @@ impl Typist {
                 let connection = connection.clone();
                 let session = for_flush.clone();
                 glib::timeout_add_local_once(std::time::Duration::from_millis(120), move || {
-                    for text in this.pending.borrow_mut().drain(..) {
-                        type_text(&connection, &session, &text);
+                    for queued in this.take_pending() {
+                        type_text(&connection, &session, &queued.text);
+                        (queued.done)(Delivered::Typed);
                     }
                 });
             },
         );
     }
 
-    /// Consent was refused or the session died. Fall back to the clipboard for
-    /// anything queued, and stop asking.
+    /// Consent was refused or the session died. Everything queued goes to the
+    /// clipboard, and every caller is told so.
     fn give_up(&self) {
         self.state.set(State::Refused);
         *self.session.borrow_mut() = None;
-        let queued: Vec<String> = self.pending.borrow_mut().drain(..).collect();
-        if let Some(text) = queued.last() {
-            copy_to_clipboard(text);
+        for queued in self.take_pending() {
+            copy_to_clipboard(&queued.text);
+            (queued.done)(Delivered::Copied);
         }
     }
 }

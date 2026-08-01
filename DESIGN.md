@@ -129,6 +129,13 @@ dialog both say which action a key is already taken by.
 
 **No Meson.** Cargo plus `install.sh`, as in the sibling apps.
 
+**Delivery reported an outcome it did not know yet.** `deliver` answered
+`Typed` the moment it queued text behind the consent dialog, so a refusal fell
+back to the clipboard in total silence — the user saw "Cleaning up", then
+nothing. The queue now carries each caller's callback and fires it when the
+portal actually answers, permission has a row in settings with a way to ask
+again, and the dialog is announced before it appears.
+
 ## Settled
 
 - Application id `us.hagreli.Scribe`, binary `scribe`

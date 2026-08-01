@@ -27,6 +27,9 @@ mod imp {
         pub mode: RefCell<Option<adw::ComboRow>>,
         pub delivery: RefCell<Option<adw::ComboRow>>,
         pub shortcut_row: RefCell<Option<adw::ActionRow>>,
+        pub permission_row: RefCell<Option<adw::ActionRow>>,
+        pub permission_button: RefCell<Option<gtk::Button>>,
+        pub preview: RefCell<Option<adw::SwitchRow>>,
         pub numbers: RefCell<Option<adw::SwitchRow>>,
         pub cleanup: RefCell<Option<adw::SwitchRow>>,
         pub endpoint: RefCell<Option<adw::EntryRow>>,
@@ -65,6 +68,7 @@ mod imp {
                     Signal::builder("download-requested").build(),
                     Signal::builder("remove-model-requested").build(),
                     Signal::builder("shortcut-change-requested").build(),
+                    Signal::builder("permission-requested").build(),
                 ]
             })
         }
@@ -151,6 +155,17 @@ impl Window {
         ));
         group.add(&mode);
 
+        let preview = adw::SwitchRow::builder()
+            .title("Show words as you speak")
+            .subtitle("Fills the recording window while you talk")
+            .build();
+        preview.connect_active_notify(glib::clone!(
+            #[weak(rename_to = window)]
+            self,
+            move |_| window.changed()
+        ));
+        group.add(&preview);
+
         let shortcut_row = adw::ActionRow::builder()
             .title("Shortcut")
             .subtitle("Press to start dictating, press again to stop")
@@ -179,10 +194,84 @@ impl Window {
         ));
         group.add(&delivery);
 
+        // Typing into another window needs GNOME's permission, and until this
+        // row existed a refusal was invisible: the text quietly went to the
+        // clipboard and nothing said why.
+        let permission_row = adw::ActionRow::builder().title("Typing permission").build();
+        let permission_button = gtk::Button::builder()
+            .label("Allow typing")
+            .valign(gtk::Align::Center)
+            .build();
+        permission_button.connect_clicked(glib::clone!(
+            #[weak(rename_to = window)]
+            self,
+            move |_| window.emit_by_name::<()>("permission-requested", &[])
+        ));
+        permission_row.add_suffix(&permission_button);
+        group.add(&permission_row);
+
         *imp.mode.borrow_mut() = Some(mode);
+        *imp.preview.borrow_mut() = Some(preview);
         *imp.delivery.borrow_mut() = Some(delivery);
         *imp.shortcut_row.borrow_mut() = Some(shortcut_row);
+        *imp.permission_row.borrow_mut() = Some(permission_row);
+        *imp.permission_button.borrow_mut() = Some(permission_button);
         group
+    }
+
+    /// The live preview needs the streaming model, which is a separate
+    /// download; say so rather than leaving a switch that does nothing.
+    pub fn show_preview_available(&self, mode: Mode, available: bool) {
+        let Some(row) = self.imp().preview.borrow().clone() else {
+            return;
+        };
+        // In Live mode the words always appear — that is the mode — so the
+        // switch would be a control over something the user cannot change.
+        let optional = mode == Mode::Batch;
+        row.set_sensitive(optional && available);
+        row.set_subtitle(if !available {
+            "Needs the streaming model, which has not been downloaded"
+        } else if optional {
+            "Fills the recording window while you talk"
+        } else {
+            "Always on in Live mode"
+        });
+    }
+
+    /// Say whether Scribe may type into other windows.
+    pub fn show_permission(&self, typing_wanted: bool, granted: bool, refused: bool) {
+        let imp = self.imp();
+        let Some(row) = imp.permission_row.borrow().clone() else {
+            return;
+        };
+        row.set_visible(typing_wanted);
+        row.remove_css_class("error");
+
+        let (subtitle, button, show_button) = if granted {
+            (
+                "Granted — Scribe can type into the focused window",
+                "Ask again",
+                false,
+            )
+        } else if refused {
+            row.add_css_class("error");
+            (
+                "Refused — transcripts are going to the clipboard instead",
+                "Ask again",
+                true,
+            )
+        } else {
+            (
+                "GNOME will ask the first time Scribe types somewhere",
+                "Allow typing",
+                true,
+            )
+        };
+        row.set_subtitle(subtitle);
+        if let Some(action) = imp.permission_button.borrow().as_ref() {
+            action.set_label(button);
+            action.set_visible(show_button);
+        }
     }
 
     fn build_model_group(&self) -> adw::PreferencesGroup {
@@ -372,6 +461,9 @@ impl Window {
                 Delivery::Clipboard => 1,
             });
         }
+        if let Some(preview) = imp.preview.borrow().as_ref() {
+            preview.set_active(config.preview);
+        }
         if let Some(numbers) = imp.numbers.borrow().as_ref() {
             numbers.set_active(config.spell_numbers);
         }
@@ -445,6 +537,9 @@ impl Window {
             } else {
                 Delivery::Type
             };
+        }
+        if let Some(preview) = imp.preview.borrow().as_ref() {
+            config.preview = preview.is_active();
         }
         if let Some(numbers) = imp.numbers.borrow().as_ref() {
             config.spell_numbers = numbers.is_active();

@@ -47,6 +47,55 @@ fn is_modifier_key(key: gtk::gdk::Key) -> bool {
     )
 }
 
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_short_transcript_is_shown_whole() {
+        assert_eq!(super::tail("hello there"), "hello there");
+    }
+
+    #[test]
+    fn a_long_transcript_shows_its_end_starting_at_a_word() {
+        let text = "alpha ".repeat(60);
+        let shown = super::tail(text.trim());
+        assert!(text.trim().ends_with(shown), "the tail must be the end");
+        assert!(shown.chars().count() < 140);
+        assert!(shown.starts_with("alpha"), "got {shown:?}");
+    }
+
+    #[test]
+    fn a_long_unbroken_run_still_returns_something() {
+        let text = "x".repeat(500);
+        let shown = super::tail(&text);
+        assert!(!shown.is_empty());
+        assert!(text.ends_with(shown));
+    }
+}
+
+/// The end of a growing transcript, which is the part worth showing.
+///
+/// The recording window is three lines tall and the text only grows, so
+/// without this the user watches the opening words sit still while everything
+/// they are currently saying falls off the bottom.
+fn tail(text: &str) -> &str {
+    const SHOWN: usize = 140;
+    let count = text.chars().count();
+    if count <= SHOWN {
+        return text;
+    }
+    // Start at a word boundary so the line does not open mid-syllable.
+    let start = text
+        .char_indices()
+        .nth(count - SHOWN)
+        .map(|(index, _)| index)
+        .unwrap_or(0);
+    let trimmed = &text[start..];
+    match trimmed.find(' ') {
+        Some(space) => trimmed[space + 1..].trim_start(),
+        None => trimmed,
+    }
+}
+
 /// What Scribe is doing right now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Activity {
@@ -114,7 +163,22 @@ mod imp {
             obj.install_actions();
 
             *self.engine.borrow_mut() = Some(Rc::new(engine::Engine::new()));
-            *self.typist.borrow_mut() = Some(Rc::new(inject::Typist::new()));
+
+            let typist = Rc::new(inject::Typist::new());
+            // The consent dialog otherwise appears with no explanation, over
+            // whatever the user was doing, seconds after they finished
+            // speaking — which reads as an interruption and gets dismissed.
+            typist.set_on_prompt(glib::clone!(
+                #[weak(rename_to = app)]
+                obj,
+                move || {
+                    app.report(
+                        "GNOME is asking whether Scribe may type into other windows. \
+                         Choose Share to let it; the transcript is waiting.",
+                    );
+                }
+            ));
+            *self.typist.borrow_mut() = Some(typist);
 
             // Scribe is useful with no window open, so the process is held up
             // by this rather than by a window.
@@ -329,6 +393,25 @@ impl ScribeApplication {
             ),
         );
         window.connect_local(
+            "permission-requested",
+            false,
+            glib::clone!(
+                #[weak(rename_to = app)]
+                self,
+                #[upgrade_or]
+                None,
+                move |values| {
+                    let window = values[0].get::<window::Window>().expect("the window");
+                    if let Some(typist) = app.imp().typist.borrow().clone() {
+                        typist.request_permission();
+                        window.toast("GNOME will ask whether Scribe may type into other windows.");
+                    }
+                    app.refresh_window(&window);
+                    None
+                }
+            ),
+        );
+        window.connect_local(
             "shortcut-change-requested",
             false,
             glib::clone!(
@@ -374,6 +457,14 @@ impl ScribeApplication {
             engine::is_installed(config.mode),
             self.imp().download.borrow().is_some(),
         );
+        window.show_preview_available(config.mode, engine::is_installed(Mode::Streaming));
+        if let Some(typist) = self.imp().typist.borrow().as_ref() {
+            window.show_permission(
+                config.delivery == Delivery::Type,
+                typist.is_ready(),
+                typist.was_refused(),
+            );
+        }
 
         let banner = if !shortcut::is_supported() {
             Some(
@@ -560,7 +651,12 @@ impl ScribeApplication {
 
         imp.partial.borrow_mut().clear();
         imp.pending_audio.borrow_mut().clear();
-        if config.mode == Mode::Streaming {
+
+        // The streaming model runs during capture in both modes. In Live mode
+        // its text is the transcript; in Accurate mode it only fills the
+        // recording window, and is thrown away when the accurate pass returns.
+        let streaming = config.streams_while_recording() && engine::is_installed(Mode::Streaming);
+        if streaming {
             if let Some(engine) = imp.engine.borrow().as_ref() {
                 engine.reset_stream();
             }
@@ -575,7 +671,7 @@ impl ScribeApplication {
                 overlay,
                 move |block: &[f32]| {
                     overlay.set_level(recorder::level(block));
-                    if app.config().mode == Mode::Streaming {
+                    if streaming {
                         app.feed_stream(block);
                     }
                 }
@@ -624,7 +720,7 @@ impl ScribeApplication {
                         app.imp().partial.borrow_mut().push_str(&text);
                         let shown = app.imp().partial.borrow().clone();
                         if let Some(overlay) = app.imp().overlay.borrow().as_ref() {
-                            overlay.set_detail(shown.trim());
+                            overlay.set_detail(tail(shown.trim()));
                         }
                     }
                 ),
@@ -753,13 +849,25 @@ impl ScribeApplication {
                 self,
                 move |outcome: inject::Delivered| {
                     if outcome == inject::Delivered::Copied {
+                        // This is reported only once the portal has actually
+                        // answered, so it is the truth rather than a guess.
                         app.report(
-                            "Scribe cannot type into other windows, so the text was copied.",
+                            "Scribe was not allowed to type into other windows, \
+                             so the text was copied. Press Ctrl+V to paste it, \
+                             and use “Allow typing” in Scribe to ask again.",
                         );
+                        app.refresh_open_window();
                     }
                 }
             ),
         );
+    }
+
+    /// Push current state into the settings window, if one is open.
+    fn refresh_open_window(&self) {
+        if let Some(window) = self.active_window().and_downcast::<window::Window>() {
+            self.refresh_window(&window);
+        }
     }
 
     /// Say something to the user, wherever they can see it.

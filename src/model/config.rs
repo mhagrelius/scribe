@@ -69,6 +69,15 @@ pub struct Config {
     #[serde(default = "default_true")]
     pub spell_numbers: bool,
 
+    /// Show words in the recording window while the user is still talking.
+    ///
+    /// In Accurate mode this runs the streaming model purely for the display;
+    /// the text that actually gets delivered still comes from the accurate
+    /// pass at the end. It costs a second model in memory, which is why it can
+    /// be turned off.
+    #[serde(default = "default_true")]
+    pub preview: bool,
+
     /// Run the transcript past the local language model to strip the "um"s.
     pub cleanup: bool,
     #[serde(default = "default_endpoint")]
@@ -92,6 +101,7 @@ impl Default for Config {
             delivery: Delivery::Type,
             shortcut: "<Super><Alt>d".to_string(),
             spell_numbers: true,
+            preview: true,
             cleanup: false,
             endpoint: default_endpoint(),
             cleanup_model: String::new(),
@@ -106,6 +116,15 @@ impl Config {
     /// the user asked for it: streaming has nothing finished to clean up.
     pub fn cleanup_runs(&self) -> bool {
         self.cleanup && self.mode.allows_cleanup()
+    }
+
+    /// Whether the streaming model needs to run during capture.
+    ///
+    /// Live mode always needs it, because it *is* the transcript. Accurate
+    /// mode needs it only to fill the recording window with something to look
+    /// at, and throws that text away.
+    pub fn streams_while_recording(&self) -> bool {
+        self.mode == Mode::Streaming || self.preview
     }
 }
 
@@ -122,6 +141,27 @@ mod tests {
         assert!(config.cleanup_runs());
         config.mode = Mode::Streaming;
         assert!(!config.cleanup_runs());
+    }
+
+    #[test]
+    fn accurate_mode_still_streams_when_a_preview_is_wanted() {
+        // The streaming model runs during capture in both modes; what differs
+        // is whether its text is kept or only shown.
+        let mut config = Config::default();
+        assert_eq!(config.mode, Mode::Batch);
+        assert!(config.streams_while_recording(), "the preview needs it");
+
+        config.preview = false;
+        assert!(
+            !config.streams_while_recording(),
+            "nothing to show, nothing to run"
+        );
+
+        config.mode = Mode::Streaming;
+        assert!(
+            config.streams_while_recording(),
+            "live mode is the transcript"
+        );
     }
 
     #[test]
